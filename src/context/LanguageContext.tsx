@@ -8,12 +8,20 @@ interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
+  dir: 'ltr' | 'rtl';
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const translations = {
   ru: {
+    // Meta
+    'meta.title': 'Экополяна | Мир Будущего',
+    'meta.description': 'Современная охота и разведение животных в мире будущего',
+    
+    // Brand
+    'brand.name': 'ЭКОПОЛЯНА',
+    
     // Header
     'nav.home': 'Главная',
     'nav.generator': 'Генератор',
@@ -64,11 +72,28 @@ export const translations = {
     'generator.tips2': '• Добавляйте слова:',
     'generator.tips3': '• Указывайте освещение:',
     'generator.tips4': '• Для охотничьей тематики:',
+    'generator.tipsWords': 'futuristic, cyberpunk, neon',
+    'generator.tipsLighting': 'golden hour, night, dramatic lighting',
+    'generator.tipsHunting': 'hunter, wildlife, forest',
+    'generator.error': 'Ошибка генерации. Попробуйте другой запрос.',
+    
+    // Language Switcher
+    'lang.ru': 'Русский',
+    'lang.en': 'English',
+    'lang.zh': '中文',
     
     // Footer
     'footer.rights': 'Все права защищены',
+    'footer.year': '2024',
   },
   en: {
+    // Meta
+    'meta.title': 'Ecopolyana | World of the Future',
+    'meta.description': 'Modern hunting and animal breeding in the future world',
+    
+    // Brand
+    'brand.name': 'ECOPOLYANA',
+    
     // Header
     'nav.home': 'Home',
     'nav.generator': 'Generator',
@@ -119,11 +144,28 @@ export const translations = {
     'generator.tips2': '• Add words:',
     'generator.tips3': '• Specify lighting:',
     'generator.tips4': '• For hunting themes:',
+    'generator.tipsWords': 'futuristic, cyberpunk, neon',
+    'generator.tipsLighting': 'golden hour, night, dramatic lighting',
+    'generator.tipsHunting': 'hunter, wildlife, forest',
+    'generator.error': 'Error generating image. Try a different prompt.',
+    
+    // Language Switcher
+    'lang.ru': 'Русский',
+    'lang.en': 'English',
+    'lang.zh': '中文',
     
     // Footer
     'footer.rights': 'All rights reserved',
+    'footer.year': '2024',
   },
   zh: {
+    // Meta
+    'meta.title': '生态原野 | 未来世界',
+    'meta.description': '未来世界的现代狩猎和动物养殖',
+    
+    // Brand
+    'brand.name': '生态原野',
+    
     // Header
     'nav.home': '首页',
     'nav.generator': '生成器',
@@ -174,9 +216,19 @@ export const translations = {
     'generator.tips2': '• 添加词语：',
     'generator.tips3': '• 指定照明：',
     'generator.tips4': '• 狩猎主题：',
+    'generator.tipsWords': 'futuristic, cyberpunk, neon',
+    'generator.tipsLighting': 'golden hour, night, dramatic lighting',
+    'generator.tipsHunting': 'hunter, wildlife, forest',
+    'generator.error': '生成图像时出错。请尝试不同的提示。',
+    
+    // Language Switcher
+    'lang.ru': 'Русский',
+    'lang.en': 'English',
+    'lang.zh': '中文',
     
     // Footer
     'footer.rights': '版权所有',
+    'footer.year': '2024',
   },
 };
 
@@ -195,18 +247,22 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem('ecopolyana-language', lang);
+    // Обновляем lang атрибут HTML
+    document.documentElement.lang = lang;
   };
 
   const t = (key: string): string => {
     return translations[language][key as keyof typeof translations['ru']] || key;
   };
 
+  const dir: 'ltr' | 'rtl' = 'ltr';
+
   if (!mounted) {
     return null;
   }
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, dir }}>
       {children}
     </LanguageContext.Provider>
   );
@@ -218,4 +274,10 @@ export function useLanguage() {
     throw new Error('useLanguage must be used within a LanguageProvider');
   }
   return context;
+}
+
+// Хук для получения всех переводов текущего языка
+export function useTranslations() {
+  const { language } = useLanguage();
+  return translations[language];
 }
