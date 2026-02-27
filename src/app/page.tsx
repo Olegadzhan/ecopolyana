@@ -4,10 +4,17 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, Cpu, Leaf, Target } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { usePageMeta } from '@/hooks/usePageMeta';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function Home() {
   const { t } = useLanguage();
-
+ 
+  usePageMeta(
+    t('meta.title'),
+    t('meta.description')
+  );
+  
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full z-0 pointer-events-none">
