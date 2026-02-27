@@ -47,7 +47,6 @@ export default function GeneratorPage() {
   const [gridMode, setGridMode] = useState(false);
   const taskCounter = useRef(0);
 
-  // Загрузка истории
   useEffect(() => {
     try {
       const saved = localStorage.getItem('ecopolyana-history');
@@ -59,7 +58,6 @@ export default function GeneratorPage() {
     }
   }, []);
 
-  // Сохранение в историю
   const saveToHistory = useCallback((url: string, promptText: string, taskId: number) => {
     try {
       const newImage: GeneratedImage = {
@@ -77,7 +75,6 @@ export default function GeneratorPage() {
     }
   }, [history]);
 
-  // Генерация одного изображения
   const generateSingleImage = useCallback(async (task: GenerationTask): Promise<string | null> => {
     const fullPrompt = `${task.prompt}, ${task.style.suffix}, futuristic, high detail, 8k`;
     const randomSeed = Math.floor(Math.random() * 10000);
@@ -111,7 +108,6 @@ export default function GeneratorPage() {
     }
   }, []);
 
-  // Генерация всех задач
   const generateAll = useCallback(async () => {
     if (!mainPrompt.trim()) return;
     
@@ -138,15 +134,15 @@ export default function GeneratorPage() {
     const updatedTasks = [...newTasks];
     
     for (let i = 0; i < updatedTasks.length; i++) {
-      setTasks(prev => prev.map(t => t.id === updatedTasks[i].id ? { ...t, status: 'loading' } : t));
+      setTasks(prev => prev.map(task => task.id === updatedTasks[i].id ? { ...task, status: 'loading' } : task));
       
       const imageUrl = await generateSingleImage(updatedTasks[i]);
       
       if (imageUrl) {
-        setTasks(prev => prev.map(t => t.id === updatedTasks[i].id ? { ...t, status: 'completed', imageUrl } : t));
+        setTasks(prev => prev.map(task => task.id === updatedTasks[i].id ? { ...task, status: 'completed', imageUrl } : task));
         saveToHistory(imageUrl, mainPrompt, updatedTasks[i].id);
       } else {
-        setTasks(prev => prev.map(t => t.id === updatedTasks[i].id ? { ...t, status: 'error', error: t('generator.error') } : t));
+        setTasks(prev => prev.map(task => task.id === updatedTasks[i].id ? { ...task, status: 'error', error: t('generator.error') } : task));
       }
     }
     
@@ -164,7 +160,7 @@ export default function GeneratorPage() {
   }, []);
 
   const removeTask = useCallback((taskId: number) => {
-    setTasks(prev => prev.filter(t => t.id !== taskId));
+    setTasks(prev => prev.filter(task => task.id !== taskId));
   }, []);
 
   const clearAllTasks = useCallback(() => {
@@ -182,7 +178,7 @@ export default function GeneratorPage() {
     document.body.removeChild(link);
   }, []);
 
-  const completedTasks = tasks.filter(t => t.status === 'completed');
+  const completedTasks = tasks.filter(task => task.status === 'completed');
 
   return (
     <div className="min-h-screen p-6 flex flex-col items-center pt-24 pb-12">
@@ -191,7 +187,6 @@ export default function GeneratorPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-6xl"
       >
-      
         <div className="text-center mb-10">
           <motion.h1 
             initial={{ opacity: 0, scale: 0.9 }}
@@ -201,7 +196,6 @@ export default function GeneratorPage() {
             style={{ 
               textShadow: '0 0 40px rgba(0, 255, 157, 0.6), 0 0 80px rgba(0, 240, 255, 0.4)',
               filter: 'drop-shadow(0 0 30px rgba(0, 255, 157, 0.5))',
-              animation: 'glow 2s ease-in-out infinite alternate'
             }}
           >
             {t('generator.subtitle')}
@@ -212,10 +206,8 @@ export default function GeneratorPage() {
           </p>
         </div>
 
-        {/* Панель управления */}
         <div className="glass-panel p-6 md:p-8 rounded-2xl mb-8">
           
-          {/* Режим сетки - МУЛЬТИ-ГЕНЕРАТОР */}
           <div className="mb-6 flex items-center justify-between">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
               <Grid3X3 size={16} /> Режим генерации
@@ -240,7 +232,6 @@ export default function GeneratorPage() {
             </div>
           </div>
 
-          {/* Выбор стиля */}
           <div className="mb-6">
             <label htmlFor="style-select" className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
               <Palette size={16} /> {t('generator.styleLabel')}
@@ -263,7 +254,6 @@ export default function GeneratorPage() {
             </div>
           </div>
 
-          {/* Пресеты */}
           <div className="mb-6">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
               <Sparkles size={16} /> {t('generator.presetsLabel')}
@@ -281,7 +271,6 @@ export default function GeneratorPage() {
             </div>
           </div>
 
-          {/* Поле ввода */}
           <div className="mb-6">
             <label htmlFor="prompt-input" className="block text-sm font-medium text-gray-400 mb-2">
               {t('generator.inputLabel')}
@@ -314,7 +303,6 @@ export default function GeneratorPage() {
             </div>
           </div>
 
-          {/* Активные задачи */}
           {tasks.length > 0 && (
             <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
               <div className="flex items-center justify-between mb-4">
@@ -379,7 +367,7 @@ export default function GeneratorPage() {
                         <span className="text-sm">{task.error || t('generator.error')}</span>
                         <button
                           onClick={() => {
-                            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'pending' } : t));
+                            setTasks(prev => prev.map(task => task.id === task.id ? { ...task, status: 'pending' } : task));
                             generateAll();
                           }}
                           className="mt-2 flex items-center gap-2 text-sm text-red-400 hover:text-red-300"
@@ -400,7 +388,6 @@ export default function GeneratorPage() {
             </div>
           )}
 
-          {/* Кнопка истории */}
           <div className="flex justify-end">
             <button
               onClick={() => setShowHistory(!showHistory)}
@@ -414,7 +401,6 @@ export default function GeneratorPage() {
           </div>
         </div>
 
-        {/* История генераций */}
         <AnimatePresence>
           {showHistory && (
             <motion.div
@@ -456,7 +442,6 @@ export default function GeneratorPage() {
           )}
         </AnimatePresence>
 
-        {/* Подсказки */}
         <div className="mt-12 glass-panel p-6 rounded-2xl">
           <h3 className="font-bold mb-4 text-green-400">{t('generator.tipsTitle')}</h3>
           <ul className="space-y-2 text-sm text-gray-400">
