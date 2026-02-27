@@ -3,8 +3,11 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, Cpu, Leaf, Target } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function Home() {
+  const { t } = useLanguage();
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full z-0 pointer-events-none">
@@ -19,31 +22,31 @@ export default function Home() {
           transition={{ duration: 0.8 }}
         >
           <span className="px-3 py-1 border border-green-500/30 rounded-full text-xs text-green-400 uppercase tracking-widest mb-4 inline-block bg-green-900/10">
-            System Online // v.2077
+            {t('home.system')}
           </span>
           <h1 className="text-6xl md:text-8xl font-bold tracking-tighter mb-4">
-            ЭКО<span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-cyan-400">ПОЛЯНА</span>
+            {t('home.title1')}<span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-cyan-400">{t('home.title2')}</span>
           </h1>
           <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto">
-            Центр симбиоза природы и технологий. Современная охота, кибер-разведение и восстановление биосферы.
+            {t('home.description')}
           </p>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
           <FeatureCard 
             icon={<Target className="w-8 h-8 text-cyan-400" />}
-            title="Smart Hunting" 
-            desc="Охота с использованием дронов и AI-ассистентов."
+            title={t('home.smartHunting')}
+            desc={t('home.smartHuntingDesc')}
           />
           <FeatureCard 
             icon={<Leaf className="w-8 h-8 text-green-400" />}
-            title="Bio-Tech" 
-            desc="Генетическое восстановление редких видов."
+            title={t('home.bioTech')}
+            desc={t('home.bioTechDesc')}
           />
           <FeatureCard 
             icon={<Cpu className="w-8 h-8 text-purple-400" />}
-            title="AI Vision" 
-            desc="Генерация образов будущего мира."
+            title={t('home.aiVision')}
+            desc={t('home.aiVisionDesc')}
           />
         </div>
 
@@ -57,7 +60,7 @@ export default function Home() {
             <button className="group relative px-8 py-4 bg-white text-black font-bold rounded-none overflow-hidden transition-all hover:scale-105">
               <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-green-400 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
               <span className="relative flex items-center gap-2">
-                ЗАПУСТИТЬ ГЕНЕРАТОР <ArrowRight size={20} />
+                {t('home.launchGenerator')} <ArrowRight size={20} />
               </span>
             </button>
           </Link>
