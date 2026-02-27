@@ -1,7 +1,6 @@
 'use client';
 
 import { usePageMeta } from '@/hooks/usePageMeta';
-import { useLanguage } from '@/context/LanguageContext';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette } from 'lucide-react';
