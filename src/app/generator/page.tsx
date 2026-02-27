@@ -1,9 +1,8 @@
 'use client';
 
-import { usePageMeta } from '@/hooks/usePageMeta';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette } from 'lucide-react';
+import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, Plus, X, Grid3X3 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 const PRESETS = [
@@ -24,96 +23,229 @@ interface GeneratedImage {
   id: number;
   url: string;
   prompt: string;
-  timestamp: Date;
+  timestamp: string;
+  taskId: number;
+}
+
+interface GenerationTask {
+  id: number;
+  prompt: string;
+  style: typeof STYLES[0];
+  status: 'pending' | 'loading' | 'completed' | 'error';
+  imageUrl: string;
+  error?: string;
 }
 
 export default function GeneratorPage() {
   const { t } = useLanguage();
-  const [prompt, setPrompt] = useState('');
+  const [mainPrompt, setMainPrompt] = useState('');
   const [selectedStyle, setSelectedStyle] = useState(STYLES[0]);
-  const [imageUrl, setImageUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [showHistory, setShowHistory] = useState(false);
- 
-  usePageMeta(
-    `${t('generator.title1')} ${t('generator.title2')} | ${t('meta.title')}`,
-    t('generator.subtitle')
-  );
-  
+  const [history, setHistory] = useState<GeneratedImage[]>([]);
+  const [tasks, setTasks] = useState<GenerationTask[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [gridMode, setGridMode] = useState(false);
+  const taskCounter = useRef(0);
+
+  // Загрузка истории
   useEffect(() => {
-    const saved = localStorage.getItem('ecopolyana-history');
-    if (saved) {
-      setHistory(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem('ecopolyana-history');
+      if (saved) {
+        setHistory(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error('Error loading history:', e);
     }
   }, []);
 
-  const saveToHistory = (url: string, promptText: string) => {
-    const newImage: GeneratedImage = {
-      id: Date.now(),
-      url,
-      prompt: promptText,
-      timestamp: new Date(),
-    };
-    const updated = [newImage, ...history].slice(0, 10);
-    setHistory(updated);
-    localStorage.setItem('ecopolyana-history', JSON.stringify(updated));
-  };
+  // Сохранение в историю
+  const saveToHistory = useCallback((url: string, promptText: string, taskId: number) => {
+    try {
+      const newImage: GeneratedImage = {
+        id: Date.now(),
+        url,
+        prompt: promptText,
+        timestamp: new Date().toISOString(),
+        taskId,
+      };
+      const updated = [newImage, ...history].slice(0, 20);
+      setHistory(updated);
+      localStorage.setItem('ecopolyana-history', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Error saving to history:', e);
+    }
+  }, [history]);
 
-  const generateImage = () => {
-    if (!prompt.trim()) return;
-    
-    setLoading(true);
-    const fullPrompt = `${prompt}, ${selectedStyle.suffix}, futuristic, high detail, 8k`;
-    const encodedPrompt = encodeURIComponent(fullPrompt);
+  // Генерация одного изображения
+  const generateSingleImage = useCallback(async (task: GenerationTask): Promise<string | null> => {
+    const fullPrompt = `${task.prompt}, ${task.style.suffix}, futuristic, high detail, 8k`;
     const randomSeed = Math.floor(Math.random() * 10000);
-    const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${randomSeed}&nologo=true`;
     
-    const img = new Image();
-    img.src = url;
-    img.onload = () => {
-      setImageUrl(url);
-      saveToHistory(url, prompt);
-      setLoading(false);
-    };
-    img.onerror = () => {
-      setLoading(false);
-      alert(t('generator.error'));
-    };
-  };
+    try {
+      // Прямая ссылка на Pollinations (работает надёжнее)
+      const directUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}&nologo=true`;
+      
+      return await new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        const timeout = setTimeout(() => {
+          resolve(null);
+        }, 30000);
+        
+        img.onload = () => {
+          clearTimeout(timeout);
+          resolve(directUrl);
+        };
+        
+        img.onerror = () => {
+          clearTimeout(timeout);
+          resolve(null);
+        };
+        
+        img.src = directUrl;
+      });
+    } catch (error) {
+      console.error('Generation error:', error);
+      return null;
+    }
+  }, []);
 
-  const clearHistory = () => {
+  // Генерация всех задач
+  const generateAll = useCallback(async () => {
+    if (!mainPrompt.trim()) return;
+    
+    setIsGenerating(true);
+    
+    // Создаём задачи
+    const newTasks: GenerationTask[] = gridMode 
+      ? [1, 2, 3, 4].map(() => ({
+          id: ++taskCounter.current,
+          prompt: mainPrompt,
+          style: selectedStyle,
+          status: 'pending' as const,
+          imageUrl: '',
+        }))
+      : [{
+          id: ++taskCounter.current,
+          prompt: mainPrompt,
+          style: selectedStyle,
+          status: 'pending' as const,
+          imageUrl: '',
+        }];
+    
+    setTasks(newTasks);
+    
+    // Запускаем генерацию для каждой задачи
+    const updatedTasks = [...newTasks];
+    
+    for (let i = 0; i < updatedTasks.length; i++) {
+      setTasks(prev => prev.map(t => t.id === updatedTasks[i].id ? { ...t, status: 'loading' } : t));
+      
+      const imageUrl = await generateSingleImage(updatedTasks[i]);
+      
+      if (imageUrl) {
+        setTasks(prev => prev.map(t => t.id === updatedTasks[i].id ? { ...t, status: 'completed', imageUrl } : t));
+        saveToHistory(imageUrl, mainPrompt, updatedTasks[i].id);
+      } else {
+        setTasks(prev => prev.map(t => t.id === updatedTasks[i].id ? { ...t, status: 'error', error: t('generator.error') } : t));
+      }
+    }
+    
+    setIsGenerating(false);
+  }, [mainPrompt, selectedStyle, gridMode, saveToHistory, t]);
+
+  const clearHistory = useCallback(() => {
     setHistory([]);
     localStorage.removeItem('ecopolyana-history');
-  };
+  }, []);
 
-  const loadFromHistory = (item: GeneratedImage) => {
-    setImageUrl(item.url);
-    setPrompt(item.prompt);
+  const loadFromHistory = useCallback((item: GeneratedImage) => {
+    setMainPrompt(item.prompt);
     setShowHistory(false);
-  };
+  }, []);
+
+  const removeTask = useCallback((taskId: number) => {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+  }, []);
+
+  const clearAllTasks = useCallback(() => {
+    setTasks([]);
+  }, []);
+
+  const downloadImage = useCallback((url: string, taskId: number) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ecopolyana-${taskId}-${Date.now()}.jpg`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
+
+  const completedTasks = tasks.filter(t => t.status === 'completed');
+  const loadingTasks = tasks.filter(t => t.status === 'loading');
 
   return (
     <div className="min-h-screen p-6 flex flex-col items-center pt-24 pb-12">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-5xl"
+        className="w-full max-w-6xl"
       >
+        {/* Заголовок - убран NEURAL VISION */}
         <div className="text-center mb-10">
-          <h2 className="text-4xl md:text-5xl font-bold mb-3">
-            {t('generator.title1')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-cyan-400">{t('generator.title2')}</span>
-          </h2>
-          <p className="text-gray-400">{t('generator.subtitle')}</p>
+          <motion.h1 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="text-5xl md:text-7xl font-bold mb-3 bg-gradient-to-r from-green-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent animate-pulse"
+            style={{ 
+              textShadow: '0 0 30px rgba(0, 255, 157, 0.5)',
+              filter: 'drop-shadow(0 0 20px rgba(0, 240, 255, 0.3))'
+            }}
+          >
+            {t('generator.subtitle')}
+          </motion.h1>
+          <p className="text-gray-500 text-sm mt-2">Multi-Generator AI System v2.0</p>
         </div>
 
+        {/* Панель управления */}
         <div className="glass-panel p-6 md:p-8 rounded-2xl mb-8">
           
+          {/* Режим сетки */}
+          <div className="mb-6 flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
+              <Grid3X3 size={16} /> Режим генерации
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setGridMode(false)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  !gridMode ? 'bg-green-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                Одиночный
+              </button>
+              <button
+                onClick={() => setGridMode(true)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  gridMode ? 'bg-green-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                4 одновременно
+              </button>
+            </div>
+          </div>
+
+          {/* Выбор стиля */}
           <div className="mb-6">
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
+            <label htmlFor="style-select" className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
               <Palette size={16} /> {t('generator.styleLabel')}
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div id="style-select" className="flex flex-wrap gap-2" role="group" aria-label={t('generator.styleLabel')}>
               {STYLES.map((style) => (
                 <button
                   key={style.id}
@@ -123,6 +255,7 @@ export default function GeneratorPage() {
                       ? 'bg-green-600 text-white'
                       : 'bg-white/5 text-gray-400 hover:bg-white/10'
                   }`}
+                  aria-pressed={selectedStyle.id === style.id}
                 >
                   {t(style.label)}
                 </button>
@@ -130,15 +263,16 @@ export default function GeneratorPage() {
             </div>
           </div>
 
+          {/* Пресеты */}
           <div className="mb-6">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
               <Sparkles size={16} /> {t('generator.presetsLabel')}
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t('generator.presetsLabel')}>
               {PRESETS.map((preset, idx) => (
                 <button
                   key={idx}
-                  onClick={() => setPrompt(preset.prompt)}
+                  onClick={() => setMainPrompt(preset.prompt)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-900/50 transition-all"
                 >
                   {t(preset.label)}
@@ -147,37 +281,132 @@ export default function GeneratorPage() {
             </div>
           </div>
 
+          {/* Поле ввода с id и name */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-400 mb-2">
+            <label htmlFor="prompt-input" className="block text-sm font-medium text-gray-400 mb-2">
               {t('generator.inputLabel')}
             </label>
             <div className="flex flex-col md:flex-row gap-3">
               <input 
+                id="prompt-input"
+                name="prompt-input"
                 type="text" 
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                value={mainPrompt}
+                onChange={(e) => setMainPrompt(e.target.value)}
                 placeholder={t('generator.inputPlaceholder')}
                 className="flex-1 bg-black/50 border border-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:border-green-500 transition-colors text-white placeholder-gray-600"
-                onKeyDown={(e) => e.key === 'Enter' && generateImage()}
+                onKeyDown={(e) => e.key === 'Enter' && !isGenerating && generateAll()}
+                aria-label={t('generator.inputLabel')}
+                autoComplete="off"
               />
               <button 
-                onClick={generateImage}
-                disabled={loading || !prompt.trim()}
+                onClick={generateAll}
+                disabled={isGenerating || !mainPrompt.trim()}
                 className="bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-500 hover:to-cyan-500 text-white px-8 py-3 rounded-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[140px]"
+                aria-label={t('generator.generate')}
               >
-                {loading ? (
+                {isGenerating ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <><Sparkles size={18} /> {t('generator.generate')}</>
+                  <><Sparkles size={18} /> {gridMode ? '4x ' : ''}{t('generator.generate')}</>
                 )}
               </button>
             </div>
           </div>
 
+          {/* Активные задачи */}
+          {tasks.length > 0 && (
+            <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  <ImageIcon size={20} className="text-green-400" />
+                  Активные генерации ({completedTasks.length}/{tasks.length})
+                </h3>
+                <button
+                  onClick={clearAllTasks}
+                  className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors"
+                >
+                  <Trash2 size={14} /> Очистить все
+                </button>
+              </div>
+              
+              <div className={`grid gap-4 ${gridMode ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+                {tasks.map((task) => (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="relative bg-black/40 rounded-lg overflow-hidden border border-gray-700"
+                  >
+                    <div className="absolute top-2 right-2 z-10 flex gap-2">
+                      {task.status === 'completed' && (
+                        <button
+                          onClick={() => downloadImage(task.imageUrl, task.id)}
+                          className="p-2 bg-green-600/80 hover:bg-green-500 rounded-lg transition-colors"
+                          aria-label="Download"
+                        >
+                          <Download size={16} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeTask(task.id)}
+                        className="p-2 bg-red-600/80 hover:bg-red-500 rounded-lg transition-colors"
+                        aria-label="Remove"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    {task.status === 'loading' && (
+                      <div className="aspect-video flex flex-col items-center justify-center text-cyan-400">
+                        <div className="w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-3" />
+                        <span className="text-sm">Генерация...</span>
+                      </div>
+                    )}
+
+                    {task.status === 'completed' && task.imageUrl && (
+                      <img 
+                        src={task.imageUrl} 
+                        alt={`Generated ${task.id}`}
+                        className="w-full aspect-video object-cover"
+                        crossOrigin="anonymous"
+                        loading="lazy"
+                      />
+                    )}
+
+                    {task.status === 'error' && (
+                      <div className="aspect-video flex flex-col items-center justify-center text-red-400">
+                        <span className="text-sm">{task.error || 'Ошибка'}</span>
+                        <button
+                          onClick={() => {
+                            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'pending' } : t));
+                            generateAll();
+                          }}
+                          className="mt-2 flex items-center gap-2 text-sm text-red-400 hover:text-red-300"
+                        >
+                          <RefreshCw size={14} /> Повторить
+                        </button>
+                      </div>
+                    )}
+
+                    {task.status === 'pending' && (
+                      <div className="aspect-video flex items-center justify-center text-gray-500">
+                        <span>Ожидание...</span>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Кнопка истории */}
           <div className="flex justify-end">
             <button
               onClick={() => setShowHistory(!showHistory)}
               className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+              aria-expanded={showHistory}
+              aria-controls="history-panel"
             >
               <History size={16} />
               {showHistory ? t('generator.hideHistory') : t('generator.history')} ({history.length})
@@ -185,9 +414,11 @@ export default function GeneratorPage() {
           </div>
         </div>
 
+        {/* История генераций */}
         <AnimatePresence>
           {showHistory && (
             <motion.div
+              id="history-panel"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -199,6 +430,7 @@ export default function GeneratorPage() {
                   <button
                     onClick={clearHistory}
                     className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors"
+                    aria-label={t('generator.clearHistory')}
                   >
                     <Trash2 size={14} /> {t('generator.clearHistory')}
                   </button>
@@ -213,8 +445,9 @@ export default function GeneratorPage() {
                       key={item.id}
                       onClick={() => loadFromHistory(item)}
                       className="aspect-square rounded-lg overflow-hidden border border-gray-700 hover:border-green-500 transition-colors"
+                      aria-label={`Load image: ${item.prompt}`}
                     >
-                      <img src={item.url} alt="thumbnail" className="w-full h-full object-cover" />
+                      <img src={item.url} alt="thumbnail" className="w-full h-full object-cover" loading="lazy" />
                     </button>
                   ))}
                 </div>
@@ -223,61 +456,7 @@ export default function GeneratorPage() {
           )}
         </AnimatePresence>
 
-        <div className="relative w-full aspect-video bg-black/40 rounded-2xl border border-gray-800 overflow-hidden flex items-center justify-center min-h-[400px]">
-          {loading && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-cyan-400 flex flex-col items-center"
-            >
-              <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-4" />
-              <span className="text-lg font-medium">{t('generator.generatingText')}</span>
-              <span className="text-sm text-gray-500 mt-2">{t('generator.generatingTime')}</span>
-            </motion.div>
-          )}
-          
-          {!loading && !imageUrl && (
-            <div className="text-gray-600 flex flex-col items-center">
-              <ImageIcon size={64} className="mb-4 opacity-30" />
-              <span className="text-lg">{t('generator.waiting')}</span>
-            </div>
-          )}
-
-          {imageUrl && !loading && (
-            <motion.img 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              src={imageUrl} 
-              alt="Generated content" 
-              className="w-full h-full object-contain bg-black"
-            />
-          )}
-        </div>
-
-        {imageUrl && !loading && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-6 flex flex-wrap gap-4 justify-center"
-          >
-            <a 
-              href={imageUrl} 
-              download={`ecopolyana-${Date.now()}.jpg`}
-              target="_blank"
-              className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-            >
-              <Download size={18} /> {t('generator.download')}
-            </a>
-            <button
-              onClick={() => setImageUrl('')}
-              className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-            >
-              <ImageIcon size={18} /> {t('generator.newGeneration')}
-            </button>
-          </motion.div>
-        )}
-
+        {/* Подсказки */}
         <div className="mt-12 glass-panel p-6 rounded-2xl">
           <h3 className="font-bold mb-4 text-green-400">{t('generator.tipsTitle')}</h3>
           <ul className="space-y-2 text-sm text-gray-400">
