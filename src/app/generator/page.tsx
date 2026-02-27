@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, Plus, X, Grid3X3 } from 'lucide-react';
+import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, X, Grid3X3 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 const PRESETS = [
@@ -83,7 +83,6 @@ export default function GeneratorPage() {
     const randomSeed = Math.floor(Math.random() * 10000);
     
     try {
-      // Прямая ссылка на Pollinations (работает надёжнее)
       const directUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}&nologo=true`;
       
       return await new Promise((resolve) => {
@@ -118,7 +117,6 @@ export default function GeneratorPage() {
     
     setIsGenerating(true);
     
-    // Создаём задачи
     const newTasks: GenerationTask[] = gridMode 
       ? [1, 2, 3, 4].map(() => ({
           id: ++taskCounter.current,
@@ -137,7 +135,6 @@ export default function GeneratorPage() {
     
     setTasks(newTasks);
     
-    // Запускаем генерацию для каждой задачи
     const updatedTasks = [...newTasks];
     
     for (let i = 0; i < updatedTasks.length; i++) {
@@ -186,7 +183,6 @@ export default function GeneratorPage() {
   }, []);
 
   const completedTasks = tasks.filter(t => t.status === 'completed');
-  const loadingTasks = tasks.filter(t => t.status === 'loading');
 
   return (
     <div className="min-h-screen p-6 flex flex-col items-center pt-24 pb-12">
@@ -195,27 +191,31 @@ export default function GeneratorPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-6xl"
       >
-        {/* Заголовок - убран NEURAL VISION */}
+      
         <div className="text-center mb-10">
           <motion.h1 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5 }}
-            className="text-5xl md:text-7xl font-bold mb-3 bg-gradient-to-r from-green-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent animate-pulse"
+            className="text-5xl md:text-7xl lg:text-8xl font-black mb-4 bg-gradient-to-r from-green-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent"
             style={{ 
-              textShadow: '0 0 30px rgba(0, 255, 157, 0.5)',
-              filter: 'drop-shadow(0 0 20px rgba(0, 240, 255, 0.3))'
+              textShadow: '0 0 40px rgba(0, 255, 157, 0.6), 0 0 80px rgba(0, 240, 255, 0.4)',
+              filter: 'drop-shadow(0 0 30px rgba(0, 255, 157, 0.5))',
+              animation: 'glow 2s ease-in-out infinite alternate'
             }}
           >
             {t('generator.subtitle')}
           </motion.h1>
-          <p className="text-gray-500 text-sm mt-2">Multi-Generator AI System v2.0</p>
+          <p className="text-gray-500 text-sm mt-2 flex items-center justify-center gap-2">
+            <Grid3X3 size={14} />
+            {gridMode ? 'Multi-Generator 4x Mode' : 'Single Generator Mode'}
+          </p>
         </div>
 
         {/* Панель управления */}
         <div className="glass-panel p-6 md:p-8 rounded-2xl mb-8">
           
-          {/* Режим сетки */}
+          {/* Режим сетки - МУЛЬТИ-ГЕНЕРАТОР */}
           <div className="mb-6 flex items-center justify-between">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
               <Grid3X3 size={16} /> Режим генерации
@@ -281,7 +281,7 @@ export default function GeneratorPage() {
             </div>
           </div>
 
-          {/* Поле ввода с id и name */}
+          {/* Поле ввода */}
           <div className="mb-6">
             <label htmlFor="prompt-input" className="block text-sm font-medium text-gray-400 mb-2">
               {t('generator.inputLabel')}
@@ -320,13 +320,13 @@ export default function GeneratorPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-lg flex items-center gap-2">
                   <ImageIcon size={20} className="text-green-400" />
-                  Активные генерации ({completedTasks.length}/{tasks.length})
+                  {t('generator.activeGenerations')} ({completedTasks.length}/{tasks.length})
                 </h3>
                 <button
                   onClick={clearAllTasks}
                   className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors"
                 >
-                  <Trash2 size={14} /> Очистить все
+                  <Trash2 size={14} /> {t('generator.clearAll')}
                 </button>
               </div>
               
@@ -343,7 +343,7 @@ export default function GeneratorPage() {
                         <button
                           onClick={() => downloadImage(task.imageUrl, task.id)}
                           className="p-2 bg-green-600/80 hover:bg-green-500 rounded-lg transition-colors"
-                          aria-label="Download"
+                          aria-label={t('generator.download')}
                         >
                           <Download size={16} />
                         </button>
@@ -351,7 +351,7 @@ export default function GeneratorPage() {
                       <button
                         onClick={() => removeTask(task.id)}
                         className="p-2 bg-red-600/80 hover:bg-red-500 rounded-lg transition-colors"
-                        aria-label="Remove"
+                        aria-label={t('generator.remove')}
                       >
                         <X size={16} />
                       </button>
@@ -360,7 +360,7 @@ export default function GeneratorPage() {
                     {task.status === 'loading' && (
                       <div className="aspect-video flex flex-col items-center justify-center text-cyan-400">
                         <div className="w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-3" />
-                        <span className="text-sm">Генерация...</span>
+                        <span className="text-sm">{t('generator.generating')}</span>
                       </div>
                     )}
 
@@ -376,7 +376,7 @@ export default function GeneratorPage() {
 
                     {task.status === 'error' && (
                       <div className="aspect-video flex flex-col items-center justify-center text-red-400">
-                        <span className="text-sm">{task.error || 'Ошибка'}</span>
+                        <span className="text-sm">{task.error || t('generator.error')}</span>
                         <button
                           onClick={() => {
                             setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'pending' } : t));
@@ -391,7 +391,7 @@ export default function GeneratorPage() {
 
                     {task.status === 'pending' && (
                       <div className="aspect-video flex items-center justify-center text-gray-500">
-                        <span>Ожидание...</span>
+                        <span>{t('generator.pending')}</span>
                       </div>
                     )}
                   </motion.div>
