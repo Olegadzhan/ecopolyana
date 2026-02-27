@@ -72,7 +72,7 @@ export default function GeneratorPage() {
     };
     img.onerror = () => {
       setLoading(false);
-      alert('Error generating image. Try a different prompt.');
+      alert(t('generator.error'));
     };
   };
 
@@ -276,9 +276,9 @@ export default function GeneratorPage() {
           <h3 className="font-bold mb-4 text-green-400">{t('generator.tipsTitle')}</h3>
           <ul className="space-y-2 text-sm text-gray-400">
             <li>{t('generator.tips1')}</li>
-            <li>{t('generator.tips2')} <code className="bg-white/10 px-2 py-0.5 rounded">futuristic</code>, <code className="bg-white/10 px-2 py-0.5 rounded">cyberpunk</code>, <code className="bg-white/10 px-2 py-0.5 rounded">neon</code></li>
-            <li>{t('generator.tips3')} <code className="bg-white/10 px-2 py-0.5 rounded">golden hour</code>, <code className="bg-white/10 px-2 py-0.5 rounded">night</code>, <code className="bg-white/10 px-2 py-0.5 rounded">dramatic lighting</code></li>
-            <li>{t('generator.tips4')} <code className="bg-white/10 px-2 py-0.5 rounded">hunter</code>, <code className="bg-white/10 px-2 py-0.5 rounded">wildlife</code>, <code className="bg-white/10 px-2 py-0.5 rounded">forest</code></li>
+            <li>{t('generator.tips2')} <code className="bg-white/10 px-2 py-0.5 rounded">{t('generator.tipsWords')}</code></li>
+            <li>{t('generator.tips3')} <code className="bg-white/10 px-2 py-0.5 rounded">{t('generator.tipsLighting')}</code></li>
+            <li>{t('generator.tips4')} <code className="bg-white/10 px-2 py-0.5 rounded">{t('generator.tipsHunting')}</code></li>
           </ul>
         </div>
       </motion.div>
