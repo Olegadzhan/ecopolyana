@@ -75,37 +75,55 @@ export default function GeneratorPage() {
     }
   }, [history]);
 
-  const generateSingleImage = useCallback(async (task: GenerationTask): Promise<string | null> => {
-    const fullPrompt = `${task.prompt}, ${task.style.suffix}, futuristic, high detail, 8k`;
-    const randomSeed = Math.floor(Math.random() * 10000);
-    
-    try {
-      const directUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}&nologo=true`;
+  // УЛУЧШЕННАЯ функция генерации - без fetch, только direct URL
+  const generateSingleImage = useCallback((prompt: string, style: typeof STYLES[0]): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const fullPrompt = `${prompt}, ${style.suffix}, futuristic, high detail, 8k`;
+      const randomSeed = Math.floor(Math.random() * 10000);
       
-      return await new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
+      // Прямая ссылка на Pollinations - работает без CORS проблем
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}&nologo=true`;
+      
+      // Создаём Image объект для проверки загрузки
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      // Таймаут 45 секунд
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout'));
+      }, 45000);
+      
+      img.onload = () => {
+        clearTimeout(timeout);
+        resolve(imageUrl);
+      };
+      
+      img.onerror = () => {
+        clearTimeout(timeout);
+        // Пробуем альтернативный URL
+        const fallbackUrl = `https://pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}`;
+        const fallbackImg = new Image();
+        fallbackImg.crossOrigin = 'anonymous';
         
-        const timeout = setTimeout(() => {
-          resolve(null);
-        }, 30000);
+        const fallbackTimeout = setTimeout(() => {
+          reject(new Error('Generation failed'));
+        }, 45000);
         
-        img.onload = () => {
-          clearTimeout(timeout);
-          resolve(directUrl);
+        fallbackImg.onload = () => {
+          clearTimeout(fallbackTimeout);
+          resolve(fallbackUrl);
         };
         
-        img.onerror = () => {
-          clearTimeout(timeout);
-          resolve(null);
+        fallbackImg.onerror = () => {
+          clearTimeout(fallbackTimeout);
+          reject(new Error('Generation failed'));
         };
         
-        img.src = directUrl;
-      });
-    } catch (error) {
-      console.error('Generation error:', error);
-      return null;
-    }
+        fallbackImg.src = fallbackUrl;
+      };
+      
+      img.src = imageUrl;
+    });
   }, []);
 
   const generateAll = useCallback(async () => {
@@ -130,27 +148,25 @@ export default function GeneratorPage() {
         }];
     
     setTasks(newTasks);
-    
     const updatedTasks = [...newTasks];
     
-    for (let i = 0; i < updatedTasks.length; i++) {
-      // ИСПРАВЛЕНО: t -> taskObj
-      setTasks(prev => prev.map(taskObj => taskObj.id === updatedTasks[i].id ? { ...taskObj, status: 'loading' } : taskObj));
+    // Генерируем все задачи параллельно
+    const promises = updatedTasks.map(async (task, index) => {
+      setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { ...taskObj, status: 'loading' } : taskObj));
       
-      const imageUrl = await generateSingleImage(updatedTasks[i]);
-      
-      if (imageUrl) {
-        // ИСПРАВЛЕНО: t -> taskObj
-        setTasks(prev => prev.map(taskObj => taskObj.id === updatedTasks[i].id ? { ...taskObj, status: 'completed', imageUrl } : taskObj));
-        saveToHistory(imageUrl, mainPrompt, updatedTasks[i].id);
-      } else {
-        // ИСПРАВЛЕНО: t -> taskObj
-        setTasks(prev => prev.map(taskObj => taskObj.id === updatedTasks[i].id ? { ...taskObj, status: 'error', error: t('generator.error') } : taskObj));
+      try {
+        const imageUrl = await generateSingleImage(task.prompt, task.style);
+        setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { ...taskObj, status: 'completed', imageUrl } : taskObj));
+        saveToHistory(imageUrl, mainPrompt, task.id);
+      } catch (error) {
+        console.error(`Task ${task.id} failed:`, error);
+        setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { ...taskObj, status: 'error', error: t('generator.error') } : taskObj));
       }
-    }
+    });
     
+    await Promise.all(promises);
     setIsGenerating(false);
-  }, [mainPrompt, selectedStyle, gridMode, saveToHistory, t]);
+  }, [mainPrompt, selectedStyle, gridMode, saveToHistory, t, generateSingleImage]);
 
   const clearHistory = useCallback(() => {
     setHistory([]);
@@ -170,15 +186,22 @@ export default function GeneratorPage() {
     setTasks([]);
   }, []);
 
-  const downloadImage = useCallback((url: string, taskId: number) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `ecopolyana-${taskId}-${Date.now()}.jpg`;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadImage = useCallback(async (url: string, taskId: number) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `ecopolyana-${taskId}-${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (e) {
+      // Fallback: открыть в новой вкладке
+      window.open(url, '_blank');
+    }
   }, []);
 
   const completedTasks = tasks.filter(taskObj => taskObj.status === 'completed');
@@ -190,6 +213,7 @@ export default function GeneratorPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-6xl"
       >
+        {/* Заголовок - крупный и яркий */}
         <div className="text-center mb-10">
           <motion.h1 
             initial={{ opacity: 0, scale: 0.9 }}
@@ -209,11 +233,13 @@ export default function GeneratorPage() {
           </p>
         </div>
 
+        {/* Панель управления */}
         <div className="glass-panel p-6 md:p-8 rounded-2xl mb-8">
           
+          {/* Режим генерации */}
           <div className="mb-6 flex items-center justify-between">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
-              <Grid3X3 size={16} /> Режим генерации
+              <Grid3X3 size={16} /> {t('generator.styleLabel')}
             </label>
             <div className="flex gap-2">
               <button
@@ -222,7 +248,7 @@ export default function GeneratorPage() {
                   !gridMode ? 'bg-green-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
                 }`}
               >
-                Одиночный
+                {t('generator.singleMode')}
               </button>
               <button
                 onClick={() => setGridMode(true)}
@@ -230,11 +256,12 @@ export default function GeneratorPage() {
                   gridMode ? 'bg-green-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
                 }`}
               >
-                4 одновременно
+                {t('generator.multiMode')}
               </button>
             </div>
           </div>
 
+          {/* Выбор стиля */}
           <div className="mb-6">
             <label htmlFor="style-select" className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
               <Palette size={16} /> {t('generator.styleLabel')}
@@ -257,6 +284,7 @@ export default function GeneratorPage() {
             </div>
           </div>
 
+          {/* Пресеты */}
           <div className="mb-6">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
               <Sparkles size={16} /> {t('generator.presetsLabel')}
@@ -274,6 +302,7 @@ export default function GeneratorPage() {
             </div>
           </div>
 
+          {/* Поле ввода */}
           <div className="mb-6">
             <label htmlFor="prompt-input" className="block text-sm font-medium text-gray-400 mb-2">
               {t('generator.inputLabel')}
@@ -306,6 +335,7 @@ export default function GeneratorPage() {
             </div>
           </div>
 
+          {/* Активные задачи */}
           {tasks.length > 0 && (
             <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
               <div className="flex items-center justify-between mb-4">
@@ -351,7 +381,8 @@ export default function GeneratorPage() {
                     {taskObj.status === 'loading' && (
                       <div className="aspect-video flex flex-col items-center justify-center text-cyan-400">
                         <div className="w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-3" />
-                        <span className="text-sm">{t('generator.generating')}</span>
+                        <span className="text-sm">{t('generator.generatingText')}</span>
+                        <span className="text-xs text-gray-500 mt-1">{t('generator.generatingTime')}</span>
                       </div>
                     )}
 
@@ -367,7 +398,7 @@ export default function GeneratorPage() {
 
                     {taskObj.status === 'error' && (
                       <div className="aspect-video flex flex-col items-center justify-center text-red-400">
-                        <span className="text-sm">{taskObj.error || t('generator.error')}</span>
+                        <span className="text-sm px-4 text-center">{taskObj.error || t('generator.error')}</span>
                         <button
                           onClick={() => {
                             setTasks(prev => prev.map(item => item.id === taskObj.id ? { ...item, status: 'pending' } : item));
@@ -375,7 +406,7 @@ export default function GeneratorPage() {
                           }}
                           className="mt-2 flex items-center gap-2 text-sm text-red-400 hover:text-red-300"
                         >
-                          <RefreshCw size={14} /> Повторить
+                          <RefreshCw size={14} /> {t('generator.newGeneration')}
                         </button>
                       </div>
                     )}
@@ -391,6 +422,7 @@ export default function GeneratorPage() {
             </div>
           )}
 
+          {/* Кнопка истории */}
           <div className="flex justify-end">
             <button
               onClick={() => setShowHistory(!showHistory)}
@@ -404,6 +436,7 @@ export default function GeneratorPage() {
           </div>
         </div>
 
+        {/* История генераций */}
         <AnimatePresence>
           {showHistory && (
             <motion.div
@@ -445,6 +478,7 @@ export default function GeneratorPage() {
           )}
         </AnimatePresence>
 
+        {/* Подсказки */}
         <div className="mt-12 glass-panel p-6 rounded-2xl">
           <h3 className="font-bold mb-4 text-green-400">{t('generator.tipsTitle')}</h3>
           <ul className="space-y-2 text-sm text-gray-400">
