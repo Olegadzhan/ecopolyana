@@ -1,5 +1,7 @@
 'use client';
 
+import { usePageMeta } from '@/hooks/usePageMeta';
+import { useLanguage } from '@/context/LanguageContext';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette } from 'lucide-react';
@@ -34,7 +36,12 @@ export default function GeneratorPage() {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-
+ 
+  usePageMeta(
+    `${t('generator.title1')} ${t('generator.title2')} | ${t('meta.title')}`,
+    t('generator.subtitle')
+  );
+  
   useEffect(() => {
     const saved = localStorage.getItem('ecopolyana-history');
     if (saved) {
