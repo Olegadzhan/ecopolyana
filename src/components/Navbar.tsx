@@ -14,7 +14,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <Leaf className="w-6 h-6 text-green-400" />
-          <span className="font-bold text-xl">ЭКОПОЛЯНА</span>
+          <span className="font-bold text-xl">{t('brand.name')}</span>
         </Link>
         
         <div className="flex items-center gap-6">
