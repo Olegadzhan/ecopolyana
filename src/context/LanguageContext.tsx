@@ -78,6 +78,12 @@ export const translations = {
     'generator.error': 'Ошибка генерации. Попробуйте другой запрос.',
     'generator.errorNoPrompt': 'Введите запрос для генерации',
     'generator.errorMultiple': 'Превышено количество попыток. Подождите и попробуйте снова.',
+    'generator.multiMode': 'Режим 4x',
+    'generator.singleMode': 'Одиночный',
+    'generator.activeGenerations': 'Активные генерации',
+    'generator.clearAll': 'Очистить все',
+    'generator.pending': 'Ожидание...',
+    'generator.remove': 'Удалить',
     
     // Language Switcher
     'lang.ru': 'Русский',
@@ -152,6 +158,12 @@ export const translations = {
     'generator.error': 'Error generating image. Try a different prompt.',
     'generator.errorNoPrompt': 'Please enter a prompt to generate',
     'generator.errorMultiple': 'Too many attempts. Please wait and try again.',
+    'generator.multiMode': '4x Mode',
+    'generator.singleMode': 'Single',
+    'generator.activeGenerations': 'Active Generations',
+    'generator.clearAll': 'Clear All',
+    'generator.pending': 'Pending...',
+    'generator.remove': 'Remove',
     
     // Language Switcher
     'lang.ru': 'Русский',
@@ -226,6 +238,12 @@ export const translations = {
     'generator.error': '生成图像时出错。请尝试不同的提示。',
     'generator.errorNoPrompt': '请输入生成提示',
     'generator.errorMultiple': '尝试次数过多。请等待后重试。',
+    'generator.multiMode': '4x 模式',
+    'generator.singleMode': '单一',
+    'generator.activeGenerations': '活动生成',
+    'generator.clearAll': '全部清除',
+    'generator.pending': '等待中...',
+    'generator.remove': '删除',
     
     // Language Switcher
     'lang.ru': 'Русский',
