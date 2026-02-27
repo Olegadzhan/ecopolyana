@@ -76,6 +76,8 @@ export const translations = {
     'generator.tipsLighting': 'golden hour, night, dramatic lighting',
     'generator.tipsHunting': 'hunter, wildlife, forest',
     'generator.error': 'Ошибка генерации. Попробуйте другой запрос.',
+    'generator.errorNoPrompt': 'Введите запрос для генерации',
+    'generator.errorMultiple': 'Превышено количество попыток. Подождите и попробуйте снова.',
     
     // Language Switcher
     'lang.ru': 'Русский',
@@ -148,6 +150,8 @@ export const translations = {
     'generator.tipsLighting': 'golden hour, night, dramatic lighting',
     'generator.tipsHunting': 'hunter, wildlife, forest',
     'generator.error': 'Error generating image. Try a different prompt.',
+    'generator.errorNoPrompt': 'Please enter a prompt to generate',
+    'generator.errorMultiple': 'Too many attempts. Please wait and try again.',
     
     // Language Switcher
     'lang.ru': 'Русский',
@@ -220,6 +224,8 @@ export const translations = {
     'generator.tipsLighting': 'golden hour, night, dramatic lighting',
     'generator.tipsHunting': 'hunter, wildlife, forest',
     'generator.error': '生成图像时出错。请尝试不同的提示。',
+    'generator.errorNoPrompt': '请输入生成提示',
+    'generator.errorMultiple': '尝试次数过多。请等待后重试。',
     
     // Language Switcher
     'lang.ru': 'Русский',
@@ -237,22 +243,32 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('ecopolyana-language') as Language;
-    if (saved && ['ru', 'en', 'zh'].includes(saved)) {
-      setLanguageState(saved);
+    // Загружаем сохранённый язык из localStorage
+    try {
+      const saved = localStorage.getItem('ecopolyana-language') as Language;
+      if (saved && ['ru', 'en', 'zh'].includes(saved)) {
+        setLanguageState(saved);
+        document.documentElement.lang = saved;
+      }
+    } catch (e) {
+      console.error('Error loading language preference:', e);
     }
     setMounted(true);
   }, []);
 
   const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem('ecopolyana-language', lang);
-    // Обновляем lang атрибут HTML
-    document.documentElement.lang = lang;
+    try {
+      setLanguageState(lang);
+      localStorage.setItem('ecopolyana-language', lang);
+      document.documentElement.lang = lang;
+    } catch (e) {
+      console.error('Error saving language preference:', e);
+    }
   };
 
   const t = (key: string): string => {
-    return translations[language][key as keyof typeof translations['ru']] || key;
+    const value = translations[language][key as keyof typeof translations['ru']];
+    return value || key;
   };
 
   const dir: 'ltr' | 'rtl' = 'ltr';
