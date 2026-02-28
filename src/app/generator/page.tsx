@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, X, Grid3X3, Server, CheckCircle, AlertCircle, Key } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
+// Пресеты запросов
 const PRESETS = [
   { label: 'generator.presetCyberHunter', prompt: 'cybernetic hunter in neon forest, futuristic armor, drone companion' },
   { label: 'generator.presetBioWolf', prompt: 'genetically enhanced wolf, glowing eyes, cybernetic implants, dark forest' },
@@ -12,6 +13,7 @@ const PRESETS = [
   { label: 'generator.presetEcoStation', prompt: 'futuristic eco station, vertical gardens, solar panels, harmony with nature' },
 ];
 
+// Стили генерации
 const STYLES = [
   { id: 'cyberpunk', label: 'generator.styleCyberpunk', suffix: 'cyberpunk style, neon lights, dark atmosphere' },
   { id: 'realistic', label: 'generator.styleRealistic', suffix: 'photorealistic, 8k, highly detailed, natural lighting' },
@@ -19,11 +21,12 @@ const STYLES = [
   { id: 'anime', label: 'generator.styleAnime', suffix: 'anime style, studio ghibli, detailed animation' },
 ];
 
+// МОДЕЛИ - ТОЛЬКО БЕСПЛАТНЫЕ (без 402 ошибки)
 const MODELS = [
-  { id: 'flux', label: 'Flux', description: 'Быстрый, качественный' },
-  { id: 'zimage', label: 'ZImage', description: 'По умолчанию' },
-  { id: 'kontext', label: 'Kontext', description: 'Контекстное понимание' },
-  { id: 'seedream', label: 'SeaDream', description: 'Художественный стиль' },
+  { id: 'flux', label: 'Flux', description: 'Быстрый, качественный (бесплатно)', free: true },
+  { id: 'zimage', label: 'ZImage', description: 'По умолчанию (бесплатно)', free: true },
+  { id: 'klein', label: 'Klein', description: 'Художественный стиль', free: true },
+  { id: 'nanobanana', label: 'NanoBanana', description: 'Компактная модель', free: true },
 ];
 
 interface GeneratedImage {
@@ -108,7 +111,7 @@ export default function GeneratorPage() {
     const fullPrompt = `${prompt}, ${style.suffix}, futuristic, high detail, 8k`;
     const randomSeed = Math.floor(Math.random() * 10000);
     
-    // Используем НАШ API прокси (с ключом!)
+    // Используем НАШ API прокси
     const proxyUrl = `/api/generate?prompt=${encodeURIComponent(fullPrompt)}&seed=${randomSeed}&model=${model}&width=1024&height=1024`;
     
     return new Promise((resolve, reject) => {
@@ -126,7 +129,18 @@ export default function GeneratorPage() {
       
       img.onerror = () => {
         clearTimeout(timeout);
-        reject(new Error('Generation failed'));
+        // Проверяем, не 402 ли ошибка
+        fetch(proxyUrl, { method: 'HEAD' })
+          .then(res => {
+            if (res.status === 402) {
+              reject(new Error('402: Недостаточно pollen. Используйте Flux или ZImage.'));
+            } else {
+              reject(new Error('Generation failed'));
+            }
+          })
+          .catch(() => {
+            reject(new Error('Generation failed'));
+          });
       };
       
       img.src = proxyUrl;
@@ -175,12 +189,16 @@ export default function GeneratorPage() {
           imageUrl
         } : taskObj));
         saveToHistory(imageUrl, mainPrompt, task.id, task.model);
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Task ${task.id} failed:`, error);
+        const errorMessage = error.message?.includes('402') 
+          ? '402: Недостаточно pollen. Выберите Flux или ZImage.' 
+          : t('generator.error');
+        
         setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
           ...taskObj, 
           status: 'error', 
-          error: t('generator.error')
+          error: errorMessage
         } : taskObj));
       }
     });
@@ -285,7 +303,7 @@ export default function GeneratorPage() {
             </div>
           </div>
 
-          {/* Выбор модели */}
+          {/* Выбор модели - ТОЛЬКО БЕСПЛАТНЫЕ */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
@@ -310,7 +328,7 @@ export default function GeneratorPage() {
                       : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'
                   }`}
                 >
-                  {model.label}
+                  {model.label} {model.free && '🆓'}
                 </button>
               ))}
             </div>
@@ -331,6 +349,10 @@ export default function GeneratorPage() {
                       </div>
                     ))}
                   </div>
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <CheckCircle size={12} className="text-green-400" />
+                    Все перечисленные модели бесплатные (не требуют pollen)
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -507,9 +529,9 @@ export default function GeneratorPage() {
                     {taskObj.status === 'error' && (
                       <div className="aspect-video flex flex-col items-center justify-center text-red-400">
                         <span className="text-sm px-4 text-center">{taskObj.error || t('generator.error')}</span>
-                        {!apiKeyConfigured && (
+                        {taskObj.error?.includes('402') && (
                           <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
-                            <Key size={10} /> Проверьте настройку API ключа
+                            <Key size={10} /> Выберите модель Flux или ZImage (бесплатно)
                           </p>
                         )}
                         <button
