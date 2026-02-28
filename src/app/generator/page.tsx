@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, X, Grid3X3, Server, CheckCircle, AlertCircle } from 'lucide-react';
+import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, X, Grid3X3, Server, CheckCircle, AlertCircle, Key } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 const PRESETS = [
@@ -19,34 +19,60 @@ const STYLES = [
   { id: 'anime', label: 'generator.styleAnime', suffix: 'anime style, studio ghibli, detailed animation' },
 ];
 
+const MODELS = [
+  { id: 'flux', label: 'Flux', description: 'Быстрый, качественный' },
+  { id: 'zimage', label: 'ZImage', description: 'По умолчанию' },
+  { id: 'kontext', label: 'Kontext', description: 'Контекстное понимание' },
+  { id: 'seedream', label: 'SeaDream', description: 'Художественный стиль' },
+];
+
 interface GeneratedImage {
   id: number;
   url: string;
   prompt: string;
   timestamp: string;
   taskId: number;
+  model?: string;
 }
 
 interface GenerationTask {
   id: number;
   prompt: string;
   style: typeof STYLES[0];
+  model: string;
   status: 'pending' | 'loading' | 'completed' | 'error';
   imageUrl: string;
   error?: string;
+  retryCount?: number;
 }
 
 export default function GeneratorPage() {
   const { t } = useLanguage();
   const [mainPrompt, setMainPrompt] = useState('');
   const [selectedStyle, setSelectedStyle] = useState(STYLES[0]);
+  const [selectedModel, setSelectedModel] = useState(MODELS[0]);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [gridMode, setGridMode] = useState(false);
+  const [showModels, setShowModels] = useState(false);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
   const taskCounter = useRef(0);
 
+  // Проверка наличия API ключа
+  useEffect(() => {
+    fetch('/api/generate?keycheck=true')
+      .then(res => res.json())
+      .then(data => {
+        setApiKeyConfigured(data.configured || false);
+      })
+      .catch(() => {
+        setApiKeyConfigured(false);
+      });
+  }, []);
+
+  // Загрузка истории
   useEffect(() => {
     try {
       const saved = localStorage.getItem('ecopolyana-history');
@@ -58,7 +84,8 @@ export default function GeneratorPage() {
     }
   }, []);
 
-  const saveToHistory = useCallback((url: string, promptText: string, taskId: number) => {
+  // Сохранение в историю
+  const saveToHistory = useCallback((url: string, promptText: string, taskId: number, model?: string) => {
     try {
       const newImage: GeneratedImage = {
         id: Date.now(),
@@ -66,6 +93,7 @@ export default function GeneratorPage() {
         prompt: promptText,
         timestamp: new Date().toISOString(),
         taskId,
+        model,
       };
       const updated = [newImage, ...history].slice(0, 20);
       setHistory(updated);
@@ -75,26 +103,37 @@ export default function GeneratorPage() {
     }
   }, [history]);
 
-  // ГЕНЕРАЦИЯ ЧЕРЕЗ POLLINATIONS.AI (ПРЯМОЙ ДОСТУП)
-const generateSingleImage = useCallback(async (prompt: string, style: typeof STYLES[0], taskId: number): Promise<string> => {
-  const fullPrompt = `${prompt}, ${style.suffix}, futuristic, high detail, 8k`;
-  const randomSeed = Math.floor(Math.random() * 10000);
-  
-  // Используем НАШ API прокси (с ключом!)
-  const proxyUrl = `/api/generate?prompt=${encodeURIComponent(fullPrompt)}&seed=${randomSeed}`;
-  
-  return new Promise((resolve, reject) => {
-…    };
+  // Генерация через API прокси
+  const generateSingleImage = useCallback(async (prompt: string, style: typeof STYLES[0], model: string, taskId: number): Promise<string> => {
+    const fullPrompt = `${prompt}, ${style.suffix}, futuristic, high detail, 8k`;
+    const randomSeed = Math.floor(Math.random() * 10000);
     
-    img.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error('Generation failed'));
-    };
+    // Используем НАШ API прокси (с ключом!)
+    const proxyUrl = `/api/generate?prompt=${encodeURIComponent(fullPrompt)}&seed=${randomSeed}&model=${model}&width=1024&height=1024`;
     
-    img.src = proxyUrl;
-  });
-}, []);
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout'));
+      }, 45000);
+      
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        clearTimeout(timeout);
+        resolve(proxyUrl);
+      };
+      
+      img.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Generation failed'));
+      };
+      
+      img.src = proxyUrl;
+    });
+  }, []);
 
+  // Генерация всех задач
   const generateAll = useCallback(async () => {
     if (!mainPrompt.trim()) return;
     
@@ -105,6 +144,7 @@ const generateSingleImage = useCallback(async (prompt: string, style: typeof STY
           id: ++taskCounter.current,
           prompt: mainPrompt,
           style: selectedStyle,
+          model: selectedModel.id,
           status: 'pending' as const,
           imageUrl: '',
         }))
@@ -112,6 +152,7 @@ const generateSingleImage = useCallback(async (prompt: string, style: typeof STY
           id: ++taskCounter.current,
           prompt: mainPrompt,
           style: selectedStyle,
+          model: selectedModel.id,
           status: 'pending' as const,
           imageUrl: '',
         }];
@@ -126,27 +167,27 @@ const generateSingleImage = useCallback(async (prompt: string, style: typeof STY
       } : taskObj));
       
       try {
-        const imageUrl = await generateSingleImage(task.prompt, task.style, task.id);
+        const imageUrl = await generateSingleImage(task.prompt, task.style, task.model, task.id);
         
         setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
           ...taskObj, 
           status: 'completed', 
           imageUrl
         } : taskObj));
-        saveToHistory(imageUrl, mainPrompt, task.id);
+        saveToHistory(imageUrl, mainPrompt, task.id, task.model);
       } catch (error) {
         console.error(`Task ${task.id} failed:`, error);
         setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
           ...taskObj, 
           status: 'error', 
-          error: t('generator.error') 
+          error: t('generator.error')
         } : taskObj));
       }
     });
     
     await Promise.all(promises);
     setIsGenerating(false);
-  }, [mainPrompt, selectedStyle, gridMode, saveToHistory, t, generateSingleImage]);
+  }, [mainPrompt, selectedStyle, selectedModel, gridMode, saveToHistory, t, generateSingleImage]);
 
   const clearHistory = useCallback(() => {
     setHistory([]);
@@ -215,15 +256,84 @@ const generateSingleImage = useCallback(async (prompt: string, style: typeof STY
         {/* Панель управления */}
         <div className="glass-panel p-6 md:p-8 rounded-2xl mb-8">
           
-          {/* Инфо о провайдере */}
-          <div className="mb-6 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
-            <div className="flex items-center gap-2 text-sm text-green-400">
-              <CheckCircle size={16} />
-              <span>Провайдер: <strong>Pollinations.ai</strong> (бесплатно, без ключа)</span>
+          {/* Статус API ключа */}
+          <div className="mb-6">
+            <div className={`p-4 rounded-lg border flex items-center gap-3 ${
+              apiKeyConfigured 
+                ? 'bg-green-900/20 border-green-500/30' 
+                : 'bg-yellow-900/20 border-yellow-500/30'
+            }`}>
+              {apiKeyConfigured ? (
+                <>
+                  <CheckCircle size={20} className="text-green-400" />
+                  <div>
+                    <p className="text-green-400 text-sm font-medium">API ключ Pollinations.ai настроен</p>
+                    <p className="text-gray-500 text-xs">Генерация изображений через официальный API</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <AlertCircle size={20} className="text-yellow-400" />
+                  <div>
+                    <p className="text-yellow-400 text-sm font-medium">API ключ не настроен</p>
+                    <p className="text-gray-500 text-xs">
+                      Получите ключ на <a href="https://enter.pollinations.ai" target="_blank" rel="noopener noreferrer" className="underline">enter.pollinations.ai</a> и добавьте в .env
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Если генерация не работает — подождите 30 секунд и попробуйте снова (сервер может быть перегружен)
-            </p>
+          </div>
+
+          {/* Выбор модели */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
+                <Server size={16} /> Модель генерации
+              </label>
+              <button
+                onClick={() => setShowModels(!showModels)}
+                className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                {showModels ? 'Скрыть' : 'Показать все'}
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              {MODELS.map((model) => (
+                <button
+                  key={model.id}
+                  onClick={() => setSelectedModel(model)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+                    selectedModel.id === model.id
+                      ? 'bg-green-600 text-white border-green-500'
+                      : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  {model.label}
+                </button>
+              ))}
+            </div>
+
+            <AnimatePresence>
+              {showModels && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden mt-3"
+                >
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 bg-black/30 rounded-lg border border-white/10">
+                    {MODELS.map((model) => (
+                      <div key={model.id} className="text-xs">
+                        <span className="text-gray-300 font-medium">{model.label}</span>
+                        <span className="text-gray-500 block">{model.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Режим генерации */}
@@ -372,22 +482,36 @@ const generateSingleImage = useCallback(async (prompt: string, style: typeof STY
                       <div className="aspect-video flex flex-col items-center justify-center text-cyan-400">
                         <div className="w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-3" />
                         <span className="text-sm">{t('generator.generatingText')}</span>
+                        <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                          <Server size={10} /> {taskObj.model}
+                        </span>
                         <span className="text-xs text-gray-500 mt-1">{t('generator.generatingTime')}</span>
                       </div>
                     )}
 
                     {taskObj.status === 'completed' && taskObj.imageUrl && (
-                      <img 
-                        src={taskObj.imageUrl} 
-                        alt={`Generated ${taskObj.id}`}
-                        className="w-full aspect-video object-cover"
-                        loading="lazy"
-                      />
+                      <>
+                        <img 
+                          src={taskObj.imageUrl} 
+                          alt={`Generated ${taskObj.id}`}
+                          className="w-full aspect-video object-cover"
+                          loading="lazy"
+                        />
+                        <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded text-xs text-gray-400 flex items-center gap-1">
+                          <CheckCircle size={10} className="text-green-400" />
+                          {taskObj.model}
+                        </div>
+                      </>
                     )}
 
                     {taskObj.status === 'error' && (
                       <div className="aspect-video flex flex-col items-center justify-center text-red-400">
                         <span className="text-sm px-4 text-center">{taskObj.error || t('generator.error')}</span>
+                        {!apiKeyConfigured && (
+                          <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
+                            <Key size={10} /> Проверьте настройку API ключа
+                          </p>
+                        )}
                         <button
                           onClick={() => {
                             setTasks(prev => prev.map(item => item.id === taskObj.id ? { ...item, status: 'pending' } : item));
@@ -459,6 +583,11 @@ const generateSingleImage = useCallback(async (prompt: string, style: typeof STY
                       aria-label={`Load image: ${item.prompt}`}
                     >
                       <img src={item.url} alt="thumbnail" className="w-full h-full object-cover" loading="lazy" />
+                      {item.model && (
+                        <div className="absolute bottom-1 left-1 px-1 py-0.5 bg-black/70 rounded text-[10px] text-gray-400">
+                          {item.model}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
