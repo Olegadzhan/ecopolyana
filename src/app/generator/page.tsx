@@ -25,7 +25,6 @@ interface GeneratedImage {
   prompt: string;
   timestamp: string;
   taskId: number;
-  provider?: string;
 }
 
 interface GenerationTask {
@@ -34,8 +33,6 @@ interface GenerationTask {
   style: typeof STYLES[0];
   status: 'pending' | 'loading' | 'completed' | 'error';
   imageUrl: string;
-  provider?: string;
-  currentProvider?: string;
   error?: string;
 }
 
@@ -48,10 +45,8 @@ export default function GeneratorPage() {
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [gridMode, setGridMode] = useState(false);
-  const [showProviders, setShowProviders] = useState(false);
   const taskCounter = useRef(0);
 
-  // Загрузка истории
   useEffect(() => {
     try {
       const saved = localStorage.getItem('ecopolyana-history');
@@ -63,8 +58,7 @@ export default function GeneratorPage() {
     }
   }, []);
 
-  // Сохранение в историю
-  const saveToHistory = useCallback((url: string, promptText: string, taskId: number, provider?: string) => {
+  const saveToHistory = useCallback((url: string, promptText: string, taskId: number) => {
     try {
       const newImage: GeneratedImage = {
         id: Date.now(),
@@ -72,7 +66,6 @@ export default function GeneratorPage() {
         prompt: promptText,
         timestamp: new Date().toISOString(),
         taskId,
-        provider,
       };
       const updated = [newImage, ...history].slice(0, 20);
       setHistory(updated);
@@ -82,13 +75,13 @@ export default function GeneratorPage() {
     }
   }, [history]);
 
-  // Генерация через API прокси (обходит CORS + мульти-провайдер)
-  const generateSingleImage = useCallback(async (prompt: string, style: typeof STYLES[0], taskId: number): Promise<{ url: string; provider: string }> => {
+  // ГЕНЕРАЦИЯ ЧЕРЕЗ POLLINATIONS.AI (ПРЯМОЙ ДОСТУП)
+  const generateSingleImage = useCallback(async (prompt: string, style: typeof STYLES[0], taskId: number): Promise<string> => {
     const fullPrompt = `${prompt}, ${style.suffix}, futuristic, high detail, 8k`;
     const randomSeed = Math.floor(Math.random() * 10000);
     
-    // Используем НАШ API прокси
-    const proxyUrl = `/api/generate?prompt=${encodeURIComponent(fullPrompt)}&seed=${randomSeed}`;
+    // Прямая ссылка на Pollinations.ai
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}&nologo=true`;
     
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -100,21 +93,37 @@ export default function GeneratorPage() {
       
       img.onload = () => {
         clearTimeout(timeout);
-        // Получаем имя провайдера из заголовка
-        const provider = 'API Proxy';
-        resolve({ url: proxyUrl, provider });
+        resolve(imageUrl);
       };
       
       img.onerror = () => {
         clearTimeout(timeout);
-        reject(new Error('Generation failed'));
+        // Пробуем альтернативный формат URL
+        const fallbackUrl = `https://pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}`;
+        const fallbackImg = new Image();
+        fallbackImg.crossOrigin = 'anonymous';
+        
+        const fallbackTimeout = setTimeout(() => {
+          reject(new Error('Generation failed'));
+        }, 45000);
+        
+        fallbackImg.onload = () => {
+          clearTimeout(fallbackTimeout);
+          resolve(fallbackUrl);
+        };
+        
+        fallbackImg.onerror = () => {
+          clearTimeout(fallbackTimeout);
+          reject(new Error('Generation failed'));
+        };
+        
+        fallbackImg.src = fallbackUrl;
       };
       
-      img.src = proxyUrl;
+      img.src = imageUrl;
     });
   }, []);
 
-  // Генерация всех задач
   const generateAll = useCallback(async () => {
     if (!mainPrompt.trim()) return;
     
@@ -142,20 +151,18 @@ export default function GeneratorPage() {
     const promises = updatedTasks.map(async (task) => {
       setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
         ...taskObj, 
-        status: 'loading',
-        currentProvider: 'Connecting...' 
+        status: 'loading'
       } : taskObj));
       
       try {
-        const result = await generateSingleImage(task.prompt, task.style, task.id);
+        const imageUrl = await generateSingleImage(task.prompt, task.style, task.id);
         
         setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
           ...taskObj, 
           status: 'completed', 
-          imageUrl: result.url,
-          provider: result.provider 
+          imageUrl
         } : taskObj));
-        saveToHistory(result.url, mainPrompt, task.id, result.provider);
+        saveToHistory(imageUrl, mainPrompt, task.id);
       } catch (error) {
         console.error(`Task ${task.id} failed:`, error);
         setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
@@ -214,7 +221,7 @@ export default function GeneratorPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-6xl"
       >
-        {/* Заголовок - КРУПНЫЙ и ЯРКИЙ, без NEURAL VISION */}
+        {/* Заголовок - КРУПНЫЙ и ЯРКИЙ */}
         <div className="text-center mb-10">
           <motion.h1 
             initial={{ opacity: 0, scale: 0.9 }}
@@ -237,67 +244,15 @@ export default function GeneratorPage() {
         {/* Панель управления */}
         <div className="glass-panel p-6 md:p-8 rounded-2xl mb-8">
           
-          {/* Статус провайдеров */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
-                <Server size={16} /> Провайдеры генерации
-              </label>
-              <button
-                onClick={() => setShowProviders(!showProviders)}
-                className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-              >
-                {showProviders ? 'Скрыть' : 'Показать список'}
-              </button>
+          {/* Инфо о провайдере */}
+          <div className="mb-6 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+            <div className="flex items-center gap-2 text-sm text-green-400">
+              <CheckCircle size={16} />
+              <span>Провайдер: <strong>Pollinations.ai</strong> (бесплатно, без ключа)</span>
             </div>
-            
-            <AnimatePresence>
-              {showProviders && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-3 bg-black/30 rounded-lg border border-white/10">
-                    <div className="flex items-center gap-2 text-xs">
-                      <CheckCircle size={12} className="text-green-400" />
-                      <span className="text-gray-300">Puter.js (Flux)</span>
-                      <span className="text-gray-500 ml-auto">#1</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <CheckCircle size={12} className="text-green-400" />
-                      <span className="text-gray-300">Raphael AI</span>
-                      <span className="text-gray-500 ml-auto">#2</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <CheckCircle size={12} className="text-green-400" />
-                      <span className="text-gray-300">Imagerouter.io</span>
-                      <span className="text-gray-500 ml-auto">#3</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <CheckCircle size={12} className="text-green-400" />
-                      <span className="text-gray-300">Hugging Face (SDXL)</span>
-                      <span className="text-gray-500 ml-auto">#4</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <CheckCircle size={12} className="text-green-400" />
-                      <span className="text-gray-300">Prodia</span>
-                      <span className="text-gray-500 ml-auto">#5</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <AlertCircle size={12} className="text-yellow-400" />
-                      <span className="text-gray-300">Pollinations.ai (Backup)</span>
-                      <span className="text-gray-500 ml-auto">#6</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                    <AlertCircle size={12} />
-                    При недоступности основного провайдера автоматически используется следующий
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <p className="text-xs text-gray-500 mt-1">
+              Если генерация не работает — подождите 30 секунд и попробуйте снова (сервер может быть перегружен)
+            </p>
           </div>
 
           {/* Режим генерации */}
@@ -446,30 +401,17 @@ export default function GeneratorPage() {
                       <div className="aspect-video flex flex-col items-center justify-center text-cyan-400">
                         <div className="w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-3" />
                         <span className="text-sm">{t('generator.generatingText')}</span>
-                        {taskObj.currentProvider && (
-                          <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                            <Server size={10} /> {taskObj.currentProvider}
-                          </span>
-                        )}
                         <span className="text-xs text-gray-500 mt-1">{t('generator.generatingTime')}</span>
                       </div>
                     )}
 
                     {taskObj.status === 'completed' && taskObj.imageUrl && (
-                      <>
-                        <img 
-                          src={taskObj.imageUrl} 
-                          alt={`Generated ${taskObj.id}`}
-                          className="w-full aspect-video object-cover"
-                          loading="lazy"
-                        />
-                        {taskObj.provider && (
-                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded text-xs text-gray-400 flex items-center gap-1">
-                            <CheckCircle size={10} className="text-green-400" />
-                            {taskObj.provider}
-                          </div>
-                        )}
-                      </>
+                      <img 
+                        src={taskObj.imageUrl} 
+                        alt={`Generated ${taskObj.id}`}
+                        className="w-full aspect-video object-cover"
+                        loading="lazy"
+                      />
                     )}
 
                     {taskObj.status === 'error' && (
@@ -546,11 +488,6 @@ export default function GeneratorPage() {
                       aria-label={`Load image: ${item.prompt}`}
                     >
                       <img src={item.url} alt="thumbnail" className="w-full h-full object-cover" loading="lazy" />
-                      {item.provider && (
-                        <div className="absolute bottom-1 left-1 px-1 py-0.5 bg-black/70 rounded text-[10px] text-gray-400">
-                          {item.provider.split(' ')[0]}
-                        </div>
-                      )}
                     </button>
                   ))}
                 </div>
