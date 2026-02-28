@@ -72,7 +72,7 @@ export default function GeneratorPage() {
   const [gridMode, setGridMode] = useState(false);
   const [showModels, setShowModels] = useState(false);
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
-  const [generateMusic, setGenerateMusic] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(true); // ✅ ПЕРЕИМЕНОВАНО из generateMusic
   const audioRefs = useRef<{ [key: number]: HTMLAudioElement | null }>({});
   const taskCounter = useRef(0);
 
@@ -123,7 +123,6 @@ export default function GeneratorPage() {
 
   // Генерация музыкального промпта на основе описания изображения
   const generateMusicPrompt = useCallback((imagePrompt: string, style: typeof STYLES[0]): string => {
-    // Создаём музыкальное описание на основе визуального
     const styleToMusic: { [key: string]: string } = {
       cyberpunk: 'electronic synthwave, dark ambient, futuristic beats, neon atmosphere',
       realistic: 'cinematic orchestral, emotional soundtrack, epic strings, dramatic',
@@ -137,8 +136,8 @@ export default function GeneratorPage() {
     return `${imagePrompt.split(',')[0]}, ${musicStyle}, instrumental, 120 bpm`;
   }, []);
 
-  // Генерация музыки через Pollinations Audio API
-  const generateMusic = useCallback(async (musicPrompt: string, taskId: number): Promise<string> => {
+  // ✅ ГЕНЕРАЦИЯ МУЗЫКИ - ПЕРЕИМЕНОВАНО из generateMusic
+  const generateMusicTrack = useCallback(async (musicPrompt: string, taskId: number): Promise<string> => {
     const randomSeed = Math.floor(Math.random() * 10000);
     const musicUrl = `/api/audio?prompt=${encodeURIComponent(musicPrompt)}&model=elevenmusic&duration=30&instrumental=true&seed=${randomSeed}`;
     
@@ -247,7 +246,7 @@ export default function GeneratorPage() {
         let musicUrl = '';
         let musicPrompt = '';
         
-        if (generateMusic) {
+        if (musicEnabled) { // ✅ ИСПОЛЬЗУЕМ ПЕРЕИМЕНОВАННУЮ ПЕРЕМЕННУЮ
           setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
             ...taskObj, 
             musicStatus: 'generating'
@@ -255,7 +254,7 @@ export default function GeneratorPage() {
           
           try {
             musicPrompt = generateMusicPrompt(task.prompt, task.style);
-            musicUrl = await generateMusic(musicPrompt, task.id);
+            musicUrl = await generateMusicTrack(musicPrompt, task.id); // ✅ ИСПОЛЬЗУЕМ ПЕРЕИМЕНОВАННУЮ ФУНКЦИЮ
             
             setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
               ...taskObj, 
@@ -289,7 +288,7 @@ export default function GeneratorPage() {
     
     await Promise.all(promises);
     setIsGenerating(false);
-  }, [mainPrompt, selectedStyle, selectedModel, gridMode, generateMusic, generateMusicPrompt, saveToHistory, t, generateSingleImage, generateMusic]);
+  }, [mainPrompt, selectedStyle, selectedModel, gridMode, musicEnabled, generateMusicPrompt, saveToHistory, t, generateSingleImage, generateMusicTrack]);
 
   const clearHistory = useCallback(() => {
     setHistory([]);
@@ -302,7 +301,6 @@ export default function GeneratorPage() {
   }, []);
 
   const removeTask = useCallback((taskId: number) => {
-    // Остановить воспроизведение перед удалением
     if (audioRefs.current[taskId]) {
       audioRefs.current[taskId]?.pause();
       audioRefs.current[taskId] = null;
@@ -311,7 +309,6 @@ export default function GeneratorPage() {
   }, []);
 
   const clearAllTasks = useCallback(() => {
-    // Остановить все аудио
     Object.values(audioRefs.current).forEach(audio => {
       audio?.pause();
     });
@@ -354,7 +351,6 @@ export default function GeneratorPage() {
   }, []);
 
   const togglePlayMusic = useCallback((taskId: number, musicUrl: string) => {
-    // Остановить все остальные аудио
     Object.entries(audioRefs.current).forEach(([id, audio]) => {
       if (parseInt(id) !== taskId && audio) {
         audio.pause();
@@ -367,15 +363,12 @@ export default function GeneratorPage() {
         const existingAudio = audioRefs.current[taskId];
         
         if (existingAudio && !taskObj.isPlaying) {
-          // Возобновить воспроизведение
           existingAudio.play();
           return { ...taskObj, isPlaying: true };
         } else if (existingAudio && taskObj.isPlaying) {
-          // Пауза
           existingAudio.pause();
           return { ...taskObj, isPlaying: false };
         } else {
-          // Создать новое аудио
           const audio = new Audio(musicUrl);
           audio.loop = false;
           audio.onended = () => {
@@ -416,7 +409,7 @@ export default function GeneratorPage() {
           <p className="text-gray-500 text-sm mt-2 flex items-center justify-center gap-2">
             <Grid3X3 size={14} />
             {gridMode ? 'Multi-Generator 4x Mode' : 'Single Generator Mode'}
-            {generateMusic && <span className="text-cyan-400"> + 🎵 Music</span>}
+            {musicEnabled && <span className="text-cyan-400"> + 🎵 Music</span>}
           </p>
         </div>
 
@@ -464,8 +457,8 @@ export default function GeneratorPage() {
               </div>
               <input
                 type="checkbox"
-                checked={generateMusic}
-                onChange={(e) => setGenerateMusic(e.target.checked)}
+                checked={musicEnabled}
+                onChange={(e) => setMusicEnabled(e.target.checked)}
                 className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500"
               />
             </label>
