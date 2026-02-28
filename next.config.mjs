@@ -17,7 +17,6 @@ const nextConfig = {
     ],
     unoptimized: false,
   },
-  // Заголовки безопасности
   async headers() {
     return [
       {
@@ -25,7 +24,7 @@ const nextConfig = {
         headers: [
           { 
             key: 'Content-Security-Policy', 
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' data:; connect-src 'self' https://image.pollinations.ai;"
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data:; font-src 'self'; connect-src 'self' https://image.pollinations.ai https://pollinations.ai;"
           },
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
