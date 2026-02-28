@@ -22,7 +22,6 @@ const SafeMapContainer = dynamic(
   }
 );
 
-// Dynamic import для SearchBox
 const SearchBox = dynamic(
   () => import('@/components/map/SearchBox'),
   { ssr: false }
@@ -34,15 +33,11 @@ export default function MapPage() {
   const [searchAddress, setSearchAddress] = useState<string>('');
   const [isMounted, setIsMounted] = useState(false);
 
-  // ✅ Получаем геолокацию только после монтирования в браузере
   useEffect(() => {
     setIsMounted(true);
-    
     if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation([position.coords.latitude, position.coords.longitude]);
-        },
+        (position) => setUserLocation([position.coords.latitude, position.coords.longitude]),
         () => {},
         { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
       );
@@ -54,65 +49,32 @@ export default function MapPage() {
     setSearchAddress(address);
   };
 
-  // ✅ SSR-заглушка
+  // SSR-заглушка
   if (!isMounted) {
     return (
-      <main className="min-h-screen bg-gray-950 text-gray-100">
-        <header className="fixed top-0 left-0 right-0 z-50 glass-panel border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12">
-                <Image src="/logo.png" alt="Экополяна" fill className="object-contain" />
-              </div>
-              <span className="text-xl font-black text-gradient">Экополяна</span>
-            </div>
-            <a href="/" className="text-gray-300 hover:text-white text-sm">← На главную</a>
-          </div>
-        </header>
-        <div className="pt-24 px-4">
-          <div className="max-w-7xl mx-auto text-center">
-            <h1 className="text-4xl font-black text-gradient mb-4">Интерактивная карта</h1>
-            <p className="text-gray-400 mb-6">Загрузка...</p>
-            <div className="glass-panel rounded-2xl h-[600px] border border-emerald-500/30" />
-          </div>
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center pt-20">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-gray-400">Загрузка карты...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-gray-100">
+    <div className="min-h-screen bg-gray-950 text-gray-100">
       {/* Фоновые эффекты */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <motion.div className="absolute -top-40 -right-40 w-80 h-80 bg-green-500/10 rounded-full blur-3xl"
-          animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }}
-          transition={{ duration: 10, repeat: Infinity }} />
+          animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 10, repeat: Infinity }} />
         <motion.div className="absolute top-1/2 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl"
-          animate={{ scale: [1.1, 1, 1.1], opacity: [0.1, 0.2, 0.1] }}
-          transition={{ duration: 10, repeat: Infinity, delay: 2 }} />
+          animate={{ scale: [1.1, 1, 1.1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 10, repeat: Infinity, delay: 2 }} />
       </div>
 
-      {/* Header */}
-      <motion.header initial={{ y: -100 }} animate={{ y: 0 }}
-        className="fixed top-0 left-0 right-0 z-[1000] glass-panel border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3">
-            <div className="relative w-12 h-12">
-              <Image src="/logo.png" alt="Экополяна" fill className="object-contain drop-shadow-[0_0_15px_rgba(74,222,128,0.5)]" />
-            </div>
-            <span className="text-xl font-black bg-gradient-to-r from-green-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              Экополяна
-            </span>
-          </a>
-          <a href="/" className="text-gray-300 hover:text-white transition-colors text-sm">← На главную</a>
-        </div>
-      </motion.header>
-
       {/* Контент */}
-      <div className="pt-20 pb-8 px-4">
+      <div className="pt-8 pb-8 px-4">
         <div className="max-w-7xl mx-auto">
-          <motion.div className="text-center mb-6"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <motion.div className="text-center mb-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <h1 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-green-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent">
               Интерактивная карта
             </h1>
@@ -122,9 +84,7 @@ export default function MapPage() {
             
             {/* Поиск адреса */}
             <div className="flex justify-center">
-              <Suspense fallback={
-                <div className="w-full max-w-2xl h-12 bg-gray-900/50 rounded-xl animate-pulse" />
-              }>
+              <Suspense fallback={<div className="w-full max-w-2xl h-12 bg-gray-900/50 rounded-xl animate-pulse" />}>
                 <SearchBox onLocationSelect={handleSearchSelect} />
               </Suspense>
             </div>
@@ -137,44 +97,25 @@ export default function MapPage() {
           </motion.div>
 
           {/* Карта */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             className="glass-panel rounded-2xl overflow-hidden border border-emerald-500/30 shadow-2xl shadow-emerald-500/10"
           >
-            <Suspense fallback={
-              <div className="w-full h-[600px] bg-gray-900/50 flex items-center justify-center">
-                <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-              </div>
-            }>
-              <SafeMapContainer 
-                userLocation={userLocation} 
-                searchLocation={searchPos} 
-                searchAddress={searchAddress} 
-              />
+            <Suspense fallback={<div className="w-full h-[600px] bg-gray-900/50 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin" /></div>}>
+              <SafeMapContainer userLocation={userLocation} searchLocation={searchPos} searchAddress={searchAddress} />
             </Suspense>
           </motion.div>
 
           {/* Инфо-блок */}
-          <motion.div className="mt-6 glass-panel p-6 rounded-2xl border border-white/10"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+          <motion.div className="mt-6 glass-panel p-6 rounded-2xl border border-white/10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
             <h3 className="font-bold text-lg mb-3 text-emerald-400">🗺️ Возможности карты</h3>
             <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-400">
-              <div className="flex items-start gap-2">
-                <span className="text-emerald-400">🔍</span>
-                <div><p className="font-medium text-white">Поиск адреса</p><p>Введите любой адрес для быстрого перехода</p></div>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-cyan-400">📍</span>
-                <div><p className="font-medium text-white">Геолокация</p><p>Автоматическое определение местоположения</p></div>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-blue-400">🗂️</span>
-                <div><p className="font-medium text-white">Слои карты</p><p>Переключение между стандартной и тёмной темой</p></div>
-              </div>
+              <div className="flex items-start gap-2"><span className="text-emerald-400">🔍</span><div><p className="font-medium text-white">Поиск адреса</p><p>Введите любой адрес для быстрого перехода</p></div></div>
+              <div className="flex items-start gap-2"><span className="text-cyan-400">📍</span><div><p className="font-medium text-white">Геолокация</p><p>Автоматическое определение местоположения</p></div></div>
+              <div className="flex items-start gap-2"><span className="text-blue-400">🗂️</span><div><p className="font-medium text-white">Слои карты</p><p>Переключение между стандартной и тёмной темой</p></div></div>
             </div>
           </motion.div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
