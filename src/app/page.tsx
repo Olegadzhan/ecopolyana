@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Map, Sparkles, Leaf, Drone, Dna, Eye, ChevronDown, ExternalLink } from 'lucide-react';
+import { Map, Sparkles, Leaf, Plane, Dna, Eye, ChevronDown, ExternalLink } from 'lucide-react';
 import DynamicMap from '@/components/map/DynamicMap';
 
 export type UserLocation = [number, number] | null;
@@ -207,7 +207,7 @@ function Hero() {
 function Features() {
   const features = [
     { 
-      icon: Drone, 
+      icon: Plane, 
       title: 'Умная охота', 
       description: 'Дроны и AI-ассистенты для эффективного мониторинга дикой природы',
       gradient: 'from-green-500 to-cyan-500',
