@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 
-// Динамический импорт с отключением SSR
 const MapContainer = dynamic(
   () => import('./MapContainer').then(mod => mod.default),
   { 
@@ -28,7 +27,7 @@ interface DynamicMapProps {
 export default function DynamicMap({ userLocation }: DynamicMapProps) {
   return (
     <Suspense fallback={
-      <div className="w-full h-[500px] bg-emerald-900/20 rounded-2xl animate-pulse" />
+      <div className="w-full h-[500px] bg-emerald-900/20 rounded-2xl animate-pulse border border-emerald-500/30" />
     }>
       <MapContainer userLocation={userLocation} />
     </Suspense>
