@@ -76,53 +76,24 @@ export default function GeneratorPage() {
   }, [history]);
 
   // ГЕНЕРАЦИЯ ЧЕРЕЗ POLLINATIONS.AI (ПРЯМОЙ ДОСТУП)
-  const generateSingleImage = useCallback(async (prompt: string, style: typeof STYLES[0], taskId: number): Promise<string> => {
-    const fullPrompt = `${prompt}, ${style.suffix}, futuristic, high detail, 8k`;
-    const randomSeed = Math.floor(Math.random() * 10000);
+const generateSingleImage = useCallback(async (prompt: string, style: typeof STYLES[0], taskId: number): Promise<string> => {
+  const fullPrompt = `${prompt}, ${style.suffix}, futuristic, high detail, 8k`;
+  const randomSeed = Math.floor(Math.random() * 10000);
+  
+  // Используем НАШ API прокси (с ключом!)
+  const proxyUrl = `/api/generate?prompt=${encodeURIComponent(fullPrompt)}&seed=${randomSeed}`;
+  
+  return new Promise((resolve, reject) => {
+…    };
     
-    // Прямая ссылка на Pollinations.ai
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}&nologo=true`;
+    img.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error('Generation failed'));
+    };
     
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Timeout'));
-      }, 45000);
-      
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      
-      img.onload = () => {
-        clearTimeout(timeout);
-        resolve(imageUrl);
-      };
-      
-      img.onerror = () => {
-        clearTimeout(timeout);
-        // Пробуем альтернативный формат URL
-        const fallbackUrl = `https://pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}`;
-        const fallbackImg = new Image();
-        fallbackImg.crossOrigin = 'anonymous';
-        
-        const fallbackTimeout = setTimeout(() => {
-          reject(new Error('Generation failed'));
-        }, 45000);
-        
-        fallbackImg.onload = () => {
-          clearTimeout(fallbackTimeout);
-          resolve(fallbackUrl);
-        };
-        
-        fallbackImg.onerror = () => {
-          clearTimeout(fallbackTimeout);
-          reject(new Error('Generation failed'));
-        };
-        
-        fallbackImg.src = fallbackUrl;
-      };
-      
-      img.src = imageUrl;
-    });
-  }, []);
+    img.src = proxyUrl;
+  });
+}, []);
 
   const generateAll = useCallback(async () => {
     if (!mainPrompt.trim()) return;
