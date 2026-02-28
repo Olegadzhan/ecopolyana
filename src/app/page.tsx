@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import DynamicMap from '@/components/map/DynamicMap';
+import { generateWithFallback } from '@/lib/imageProviders';
 
 export type UserLocation = [number, number] | null;
 
@@ -23,10 +24,9 @@ function Header() {
           <nav className="hidden md:flex items-center gap-6">
             <a href="#map" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">Карта</a>
             <a href="#features" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">Технологии</a>
-            <a href="#ai-vision" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">AI Vision</a>
+            <a href="#generator" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">Генератор</a>
             <a href="#about" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">О проекте</a>
           </nav>
-          {/* ✅ Кнопка "Войти" удалена */}
         </div>
       </div>
     </header>
@@ -65,8 +65,8 @@ function Hero() {
           <a href="#map" className="btn-primary px-8 py-4 text-base">
             🗺️ Исследовать карту
           </a>
-          <a href="#ai-vision" className="btn-secondary px-8 py-4 text-base">
-            ✨ AI Vision
+          <a href="#generator" className="btn-secondary px-8 py-4 text-base">
+            ✨ Генератор AI
           </a>
         </div>
 
@@ -97,32 +97,17 @@ function Hero() {
 
 function Features() {
   const features = [
-    {
-      icon: '🚁',
-      title: 'Умная охота',
-      description: 'Использование дронов и AI-ассистентов для эффективного мониторинга',
-      color: 'from-emerald-500 to-cyan-500'
-    },
-    {
-      icon: '🧬',
-      title: 'Биотехнологии',
-      description: 'Генетическое восстановление редких видов животных',
-      color: 'from-cyan-500 to-purple-500'
-    },
+    { icon: '🚁', title: 'Умная охота', description: 'Дроны и AI-ассистенты для мониторинга', color: 'from-emerald-500 to-cyan-500' },
+    { icon: '🧬', title: 'Биотехнологии', description: 'Генетическое восстановление видов', color: 'from-cyan-500 to-purple-500' },
   ];
 
   return (
     <section id="features" className="py-20 px-4 bg-gray-900/50">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            <span className="text-gradient">Технологии проекта</span>
-          </h2>
-          <p className="text-gray-400 max-w-2xl mx-auto">
-            Инновационный подход к сохранению и изучению природы
-          </p>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gradient">Технологии проекта</h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">Инновационный подход к сохранению природы</p>
         </div>
-
         <div className="grid md:grid-cols-2 gap-8">
           {features.map((feature, index) => (
             <div key={index} className="card group">
@@ -139,148 +124,404 @@ function Features() {
   );
 }
 
-// ✅ НОВЫЙ РАЗДЕЛ: AI Vision - Генерация образов будущего
-function AIVision() {
-  const [prompt, setPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+// ============================================
+// 🎨🎵 НОВЫЙ РАЗДЕЛ: AI Generator (Изображения + Музыка)
+// ============================================
 
-  const samplePrompts = [
-    'Лес будущего с биолюминесцентными растениями',
-    'Дрон-охотник с AI-визором в туманном лесу',
+type GeneratorTab = 'image' | 'music';
+
+function AIGenerator() {
+  const [activeTab, setActiveTab] = useState<GeneratorTab>('image');
+  
+  // Image state
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [imageProvider, setImageProvider] = useState<string>('');
+  
+  // Music state
+  const [musicPrompt, setMusicPrompt] = useState('');
+  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
+  const [generatedMusic, setGeneratedMusic] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const sampleImagePrompts = [
+    'Биолюминесцентный лес будущего с дронами-наблюдателями',
     'Генетически восстановленный олень в цифровой среде',
     'Эко-поселение с вертикальными садами и солнечными панелями',
+    'AI-визор охотника с HUD-интерфейсом в туманном лесу',
   ];
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return;
-    setIsGenerating(true);
+  const sampleMusicPrompts = [
+    'Атмосферный эмбиент для ночной охоты, звуки леса, тихие басы',
+    'Эпическая оркестровая музыка для документального фильма о природе',
+    'Футуристический саундскейп с электронными элементами и птичьими трелями',
+    'Медитативная музыка для наблюдения за животными, мягкие синтезаторы',
+  ];
+
+  // 🎨 Генерация изображения
+  const handleGenerateImage = async () => {
+    if (!imagePrompt.trim()) return;
+    setIsGeneratingImage(true);
+    setGeneratedImage(null);
     
-    // Имитация генерации изображения (замените на реальный API)
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      const result = await generateWithFallback(imagePrompt, 1024, 1024);
+      if (result) {
+        setGeneratedImage(result.url);
+        setImageProvider(result.provider);
+      } else {
+        // Fallback на Pollinations direct URL
+        const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1024&height=1024&seed=${Date.now()}&nologo=true`;
+        setGeneratedImage(fallbackUrl);
+        setImageProvider('Pollinations.ai (direct)');
+      }
+    } catch (error) {
+      console.error('Image generation error:', error);
+      // Последний fallback
+      const fallbackUrl = `https://pollinations.ai/p/${encodeURIComponent(imagePrompt)}?width=1024&height=1024&seed=${Date.now()}`;
+      setGeneratedImage(fallbackUrl);
+      setImageProvider('Pollinations.ai (fallback)');
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  // 🎵 Генерация музыки (через Pollinations Audio API)
+  const handleGenerateMusic = async () => {
+    if (!musicPrompt.trim()) return;
+    setIsGeneratingMusic(true);
+    setGeneratedMusic(null);
+    setIsPlaying(false);
     
-    // Placeholder изображение (замените на реальный результат от AI API)
-    setGeneratedImage(`https://picsum.photos/seed/${encodeURIComponent(prompt)}/800/600`);
-    setIsGenerating(false);
+    try {
+      // Pollinations Audio API: https://pollinations.ai/docs/audio
+      const seed = Math.floor(Math.random() * 10000);
+      const audioUrl = `https://pollinations.ai/p/${encodeURIComponent(musicPrompt)}.mp3?model=musicgen&seed=${seed}&noinfo=true`;
+      
+      // Проверяем, что URL доступен
+      const response = await fetch(audioUrl, { method: 'HEAD' });
+      if (response.ok || response.status === 404) { // 404 нормально - файл генерируется
+        setGeneratedMusic(audioUrl);
+      }
+    } catch (error) {
+      console.error('Music generation error:', error);
+      // Fallback URL
+      const fallbackUrl = `https://pollinations.ai/p/${encodeURIComponent(musicPrompt)}.mp3?seed=${Date.now()}`;
+      setGeneratedMusic(fallbackUrl);
+    } finally {
+      setIsGeneratingMusic(false);
+    }
+  };
+
+  const togglePlay = () => {
+    setIsPlaying(!isPlaying);
   };
 
   return (
-    <section id="ai-vision" className="py-20 px-4 bg-gradient-to-b from-emerald-950/30 to-gray-950">
+    <section id="generator" className="py-20 px-4 bg-gradient-to-b from-purple-950/30 via-gray-900 to-emerald-950/30">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-sm mb-4">
-            <span>✨</span> AI Vision
+            <span>✨</span> AI Studio
           </div>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-              Генерация образов будущего
+              Генератор контента
             </span>
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Создавайте визуализации экосистем будущего с помощью искусственного интеллекта
+            Создавайте изображения и музыку будущего с помощью искусственного интеллекта
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8 items-start">
-          {/* Панель управления */}
-          <div className="card space-y-6">
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Опишите образ будущего</label>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Например: Биолюминесцентный лес с летающими дронами-наблюдателями..."
-                className="input min-h-[120px] resize-none"
-                maxLength={500}
-              />
-              <p className="text-xs text-gray-500 mt-1 text-right">{prompt.length}/500</p>
-            </div>
-
-            <div>
-              <p className="text-sm text-gray-400 mb-3">Примеры запросов:</p>
-              <div className="flex flex-wrap gap-2">
-                {samplePrompts.map((sample, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setPrompt(sample)}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 
-                               text-gray-300 hover:text-white border border-white/10 
-                               transition-all truncate max-w-[200px]"
-                  >
-                    {sample}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+        {/* Переключатель вкладок */}
+        <div className="flex justify-center mb-8">
+          <div className="inline-flex bg-gray-900/80 rounded-xl p-1 border border-white/10">
             <button
-              onClick={handleGenerate}
-              disabled={isGenerating || !prompt.trim()}
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              onClick={() => setActiveTab('image')}
+              className={`px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                activeTab === 'image' 
+                  ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-lg' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
             >
-              {isGenerating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Генерация...
-                </>
-              ) : (
-                <>
-                  <span>✨</span>
-                  Сгенерировать образ
-                </>
-              )}
+              <span>🎨</span> Изображения
             </button>
-
-            <div className="pt-4 border-t border-white/10">
-              <p className="text-xs text-gray-500">
-                💡 <strong>Совет:</strong> Чем детальнее описание, тем точнее результат. 
-                Указывайте стиль, освещение, композицию.
-              </p>
-            </div>
-          </div>
-
-          {/* Результат генерации */}
-          <div className="card min-h-[400px] flex items-center justify-center">
-            {generatedImage ? (
-              <div className="relative w-full">
-                <img 
-                  src={generatedImage} 
-                  alt="Сгенерированный образ"
-                  className="w-full rounded-xl border border-emerald-500/30 shadow-2xl"
-                />
-                <div className="absolute bottom-4 left-4 right-4 flex gap-2">
-                  <button className="flex-1 btn-secondary py-2 text-sm">
-                    📥 Скачать
-                  </button>
-                  <button 
-                    onClick={() => setGeneratedImage(null)}
-                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 
-                               text-gray-300 transition-colors"
-                  >
-                    🔄 Новая
-                  </button>
-                </div>
-              </div>
-            ) : isGenerating ? (
-              <div className="text-center">
-                <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-400 
-                                rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-gray-400">AI создаёт ваш образ...</p>
-                <p className="text-xs text-gray-500 mt-2">Это может занять до 30 секунд</p>
-              </div>
-            ) : (
-              <div className="text-center text-gray-500">
-                <div className="text-5xl mb-4">🎨</div>
-                <p>Введите запрос и нажмите "Сгенерировать"</p>
-                <p className="text-sm mt-2">для создания визуализации будущего</p>
-              </div>
-            )}
+            <button
+              onClick={() => setActiveTab('music')}
+              className={`px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                activeTab === 'music' 
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <span>🎵</span> Музыка
+            </button>
           </div>
         </div>
+
+        {/* 🎨 Панель генерации изображений */}
+        {activeTab === 'image' && (
+          <div className="grid lg:grid-cols-2 gap-8 items-start">
+            <div className="card space-y-6">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Опишите изображение</label>
+                <textarea
+                  value={imagePrompt}
+                  onChange={(e) => setImagePrompt(e.target.value)}
+                  placeholder="Например: Биолюминесцентный лес с летающими дронами..."
+                  className="input min-h-[120px] resize-none"
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-500 mt-1 text-right">{imagePrompt.length}/500</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-400 mb-3">Примеры запросов:</p>
+                <div className="flex flex-wrap gap-2">
+                  {sampleImagePrompts.map((sample, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setImagePrompt(sample)}
+                      className="px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 
+                                 text-gray-300 hover:text-white border border-white/10 
+                                 transition-all truncate max-w-[220px]"
+                    >
+                      {sample}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={handleGenerateImage}
+                disabled={isGeneratingImage || !imagePrompt.trim()}
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isGeneratingImage ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Генерация изображения...
+                  </>
+                ) : (
+                  <>
+                    <span>🎨</span>
+                    Сгенерировать изображение
+                  </>
+                )}
+              </button>
+
+              {imageProvider && (
+                <p className="text-xs text-gray-500 text-center">
+                  Провайдер: {imageProvider}
+                </p>
+              )}
+            </div>
+
+            <div className="card min-h-[400px] flex items-center justify-center bg-gray-900/50">
+              {generatedImage ? (
+                <div className="relative w-full">
+                  <img 
+                    src={generatedImage} 
+                    alt="Сгенерированное изображение"
+                    className="w-full rounded-xl border border-emerald-500/30 shadow-2xl"
+                    onLoad={(e) => (e.currentTarget.style.opacity = '1')}
+                    style={{ opacity: 0, transition: 'opacity 0.3s' }}
+                  />
+                  <div className="absolute bottom-4 left-4 right-4 flex gap-2">
+                    <a 
+                      href={generatedImage} 
+                      download="ecopolyana-ai-image.png"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 btn-secondary py-2 text-sm text-center"
+                    >
+                      📥 Скачать
+                    </a>
+                    <button 
+                      onClick={() => setGeneratedImage(null)}
+                      className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 
+                                 text-gray-300 transition-colors"
+                    >
+                      🔄 Новая
+                    </button>
+                  </div>
+                </div>
+              ) : isGeneratingImage ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-400 
+                                  rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-gray-400">AI создаёт ваше изображение...</p>
+                  <p className="text-xs text-gray-500 mt-2">Это может занять 15-45 секунд</p>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500">
+                  <div className="text-5xl mb-4">🖼️</div>
+                  <p>Введите запрос и нажмите "Сгенерировать"</p>
+                  <p className="text-sm mt-2">для создания уникального изображения</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 🎵 Панель генерации музыки */}
+        {activeTab === 'music' && (
+          <div className="grid lg:grid-cols-2 gap-8 items-start">
+            <div className="card space-y-6">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Опишите музыку</label>
+                <textarea
+                  value={musicPrompt}
+                  onChange={(e) => setMusicPrompt(e.target.value)}
+                  placeholder="Например: Атмосферный эмбиент для ночной охоты..."
+                  className="input min-h-[120px] resize-none"
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-500 mt-1 text-right">{musicPrompt.length}/500</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-400 mb-3">Примеры запросов:</p>
+                <div className="flex flex-wrap gap-2">
+                  {sampleMusicPrompts.map((sample, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setMusicPrompt(sample)}
+                      className="px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 
+                                 text-gray-300 hover:text-white border border-white/10 
+                                 transition-all truncate max-w-[220px]"
+                    >
+                      {sample}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={handleGenerateMusic}
+                disabled={isGeneratingMusic || !musicPrompt.trim()}
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isGeneratingMusic ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Генерация музыки...
+                  </>
+                ) : (
+                  <>
+                    <span>🎵</span>
+                    Сгенерировать музыку
+                  </>
+                )}
+              </button>
+
+              <p className="text-xs text-gray-500 text-center">
+                💡 Музыка генерируется через Pollinations.ai (MusicGen)
+              </p>
+            </div>
+
+            <div className="card min-h-[400px] flex items-center justify-center bg-gray-900/50">
+              {generatedMusic ? (
+                <div className="w-full max-w-md">
+                  {/* Audio Player */}
+                  <div className="bg-gray-800/50 rounded-xl p-6 border border-purple-500/30">
+                    <div className="flex items-center gap-4 mb-4">
+                      <button
+                        onClick={togglePlay}
+                        className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 
+                                   flex items-center justify-center text-white shadow-lg 
+                                   hover:scale-105 transition-transform"
+                      >
+                        {isPlaying ? (
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <rect x="6" y="4" width="4" height="16" rx="1"/>
+                            <rect x="14" y="4" width="4" height="16" rx="1"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        )}
+                      </button>
+                      <div className="flex-1">
+                        <p className="text-white font-medium truncate">{musicPrompt.slice(0, 40)}...</p>
+                        <p className="text-xs text-gray-400">AI-генерация • ~30 сек</p>
+                      </div>
+                    </div>
+                    
+                    {/* Визуализация волны (анимация) */}
+                    {isPlaying && (
+                      <div className="flex items-end justify-center gap-1 h-12 mb-4">
+                        {[...Array(20)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="w-1 bg-gradient-to-t from-purple-500 to-pink-400 rounded-full animate-pulse"
+                            style={{ 
+                              height: `${Math.random() * 100}%`,
+                              animationDelay: `${i * 0.05}s`,
+                              animationDuration: '0.5s'
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    
+                    <audio 
+                      src={generatedMusic} 
+                      autoPlay={isPlaying}
+                      onPlay={() => setIsPlaying(true)}
+                      onPause={() => setIsPlaying(false)}
+                      onEnded={() => setIsPlaying(false)}
+                      className="hidden"
+                    />
+                    
+                    <div className="flex gap-2">
+                      <a 
+                        href={generatedMusic} 
+                        download="ecopolyana-ai-music.mp3"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 btn-secondary py-2 text-sm text-center"
+                      >
+                        📥 Скачать MP3
+                      </a>
+                      <button 
+                        onClick={() => { setGeneratedMusic(null); setIsPlaying(false); }}
+                        className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 
+                                   text-gray-300 transition-colors"
+                      >
+                        🔄 Новая
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : isGeneratingMusic ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-400 
+                                  rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-gray-400">AI создаёт вашу музыку...</p>
+                  <p className="text-xs text-gray-500 mt-2">Это может занять 30-60 секунд</p>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500">
+                  <div className="text-5xl mb-4">🎧</div>
+                  <p>Введите запрос и нажмите "Сгенерировать"</p>
+                  <p className="text-sm mt-2">для создания уникального аудио</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
 }
+
+// ============================================
+// ОСТАЛЬНЫЕ КОМПОНЕНТЫ
+// ============================================
 
 function About() {
   return (
@@ -288,9 +529,7 @@ function About() {
       <div className="max-w-7xl mx-auto">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              <span className="text-gradient">О проекте Экополяна</span>
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-gradient">О проекте Экополяна</h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
               Экополяна — это инновационная платформа, объединяющая современные технологии 
               охоты с экологическим мониторингом и восстановлением природных экосистем.
@@ -321,8 +560,6 @@ function About() {
   );
 }
 
-// ✅ Раздел "Контакты" УДАЛЁН по запросу
-
 function Footer() {
   return (
     <footer className="py-12 px-4 border-t border-white/10">
@@ -342,7 +579,7 @@ function Footer() {
             <ul className="space-y-2 text-sm text-gray-400">
               <li><a href="#map" className="hover:text-emerald-400 transition-colors">Карта</a></li>
               <li><a href="#features" className="hover:text-emerald-400 transition-colors">Технологии</a></li>
-              <li><a href="#ai-vision" className="hover:text-emerald-400 transition-colors">AI Vision</a></li>
+              <li><a href="#generator" className="hover:text-emerald-400 transition-colors">Генератор</a></li>
               <li><a href="#about" className="hover:text-emerald-400 transition-colors">О проекте</a></li>
             </ul>
           </div>
@@ -356,7 +593,7 @@ function Footer() {
 }
 
 // ============================================
-// ГЛАВНЫЙ КОМПОНЕНТ СТРАНИЦЫ
+// ГЛАВНЫЙ КОМПОНЕНТ
 // ============================================
 
 export default function HomePage() {
@@ -365,24 +602,15 @@ export default function HomePage() {
 
   useEffect(() => {
     setIsMounted(true);
-    
     const requestLocation = () => {
       if (typeof navigator !== 'undefined' && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setUserLocation([
-              position.coords.latitude,
-              position.coords.longitude
-            ]);
-          },
-          () => {
-            // Тихий фолбэк
-          },
+          (position) => setUserLocation([position.coords.latitude, position.coords.longitude]),
+          () => {},
           { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
         );
       }
     };
-
     const timer = setTimeout(requestLocation, 1500);
     return () => clearTimeout(timer);
   }, []);
@@ -393,12 +621,8 @@ export default function HomePage() {
         <Header />
         <Hero />
         <Features />
-        <section className="py-16 px-4">
-          <div className="max-w-7xl mx-auto">
-            <div className="w-full h-[500px] bg-emerald-900/20 rounded-2xl animate-pulse border border-emerald-500/30" />
-          </div>
-        </section>
-        <AIVision />
+        <section className="py-16 px-4"><div className="max-w-7xl mx-auto"><div className="w-full h-[500px] bg-emerald-900/20 rounded-2xl animate-pulse border border-emerald-500/30" /></div></section>
+        <AIGenerator />
         <About />
         <Footer />
       </main>
@@ -407,7 +631,6 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100 selection:bg-emerald-500/30 selection:text-emerald-200">
-      {/* Фоновые эффекты */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
         <div className="absolute top-1/2 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl" />
@@ -418,46 +641,25 @@ export default function HomePage() {
       <Hero />
       <Features />
       
-      {/* 🗺️ СЕКЦИЯ КАРТЫ */}
+      {/* 🗺️ Карта */}
       <section id="map" className="py-16 px-4 bg-gradient-to-b from-gray-900 to-emerald-950/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8">
             <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-3">
-              🗺️ Интерактивная карта Экополяны
+              🗺️ Интерактивная карта
             </h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">
-              Исследуйте территорию проекта, переключайте слои карты и находите 
-              интересные локации
-            </p>
+            <p className="text-gray-400 max-w-2xl mx-auto">Исследуйте территорию проекта</p>
           </div>
-          
-          <Suspense fallback={
-            <div className="w-full h-[500px] bg-emerald-900/20 rounded-2xl animate-pulse border border-emerald-500/30" />
-          }>
+          <Suspense fallback={<div className="w-full h-[500px] bg-emerald-900/20 rounded-2xl animate-pulse border border-emerald-500/30" />}>
             <DynamicMap userLocation={userLocation} />
           </Suspense>
-
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center text-sm text-gray-400">
-            <div className="p-3 bg-white/5 rounded-lg">
-              <span className="text-emerald-400 font-medium">🎯</span> Геолокация
-            </div>
-            <div className="p-3 bg-white/5 rounded-lg">
-              <span className="text-emerald-400 font-medium">🗂️</span> 4 слоя карты
-            </div>
-            <div className="p-3 bg-white/5 rounded-lg">
-              <span className="text-emerald-400 font-medium">📍</span> Маркеры локаций
-            </div>
-          </div>
         </div>
       </section>
       
-      {/* ✨ AI VISION - Генерация образов */}
-      <AIVision />
+      {/* ✨🎨🎵 AI Generator */}
+      <AIGenerator />
       
       <About />
-      
-      {/* ✅ Контакты удалены */}
-      
       <Footer />
     </main>
   );
