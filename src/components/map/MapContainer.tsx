@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-// ✅ ИСПРАВЛЕНИЕ: используем alias для импорта из react-leaflet
 import { 
   MapContainer as LeafletMap, 
   TileLayer, 
   Marker, 
   Popup, 
-  useMap 
+  useMap,
+  useMapEvents
 } from 'react-leaflet';
 import { Icon, LatLngExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -21,30 +21,28 @@ const markerIcon = new Icon({
   iconAnchor: [12, 41],
 });
 
-// Компонент кнопки геолокации
-function LocateControl({ onLocationFound }: { onLocationFound: (pos: [number, number]) => void }) {
-  const map = useMap();
-
-  const locateUser = useCallback(() => {
-    if (!navigator.geolocation) return;
-    map.locate({ setView: true, maxZoom: 14, enableHighAccuracy: true });
-  }, [map]);
-
-  useEffect(() => {
-    const handleLocationFound = (e: any) => {
+// ✅ Компонент для обработки событий карты (вместо imperative API)
+function MapEvents({ onLocationFound }: { onLocationFound: (pos: [number, number]) => void }) {
+  const map = useMapEvents({
+    locationfound(e) {
       const { lat, lng } = e.latlng;
       onLocationFound([lat, lng]);
-      const userMarker = new Marker([lat, lng], { icon: markerIcon }).addTo(map);
-      userMarker.bindPopup('📍 Вы здесь').openPopup();
-    };
+    },
+  });
 
-    map.on('locationfound', handleLocationFound);
-    return () => { map.off('locationfound', handleLocationFound); };
-  }, [map, onLocationFound]);
+  useEffect(() => {
+    // Пытаемся получить геолокацию при монтировании
+    map.locate({ setView: false, maxZoom: 14, enableHighAccuracy: true });
+  }, [map]);
 
+  return null;
+}
+
+// ✅ Кнопка для ручного запроса геолокации
+function LocateButton({ onLocate }: { onLocate: () => void }) {
   return (
     <button
-      onClick={locateUser}
+      onClick={onLocate}
       className="absolute top-4 right-4 z-[1000] bg-emerald-600 hover:bg-emerald-700 
                  text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2
                  transition-all duration-200"
@@ -59,10 +57,24 @@ interface MapContainerProps {
   userLocation?: [number, number] | null;
 }
 
-// ✅ Наш компонент теперь не конфликтует с импортом
 export default function MapContainer({ userLocation }: MapContainerProps) {
   const [activeLayer, setActiveLayer] = useState('osm');
   const [center, setCenter] = useState<LatLngExpression>(userLocation || [55.7558, 37.6173]);
+  const [showUserMarker, setShowUserMarker] = useState(!!userLocation);
+
+  // Обработчик для кнопки геолокации
+  const handleLocate = useCallback(() => {
+    setShowUserMarker(true);
+    // Геолокация обрабатывается через MapEvents
+  }, []);
+
+  // Обновление центра при изменении userLocation
+  useEffect(() => {
+    if (userLocation) {
+      setCenter(userLocation);
+      setShowUserMarker(true);
+    }
+  }, [userLocation]);
 
   // Конфигурация слоёв
   const layers = {
@@ -92,7 +104,6 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
     <div className="relative w-full h-full min-h-[500px] rounded-2xl overflow-hidden 
                     border border-emerald-500/30 shadow-2xl">
       
-      {/* ✅ Используем LeafletMap вместо MapContainer */}
       <LeafletMap 
         center={center} 
         zoom={10} 
@@ -114,10 +125,23 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
             </div>
           </Popup>
         </Marker>
+
+        {/* ✅ Маркер пользователя (React-компонент, не new Marker) */}
+        {showUserMarker && userLocation && (
+          <Marker position={userLocation} icon={markerIcon}>
+            <Popup>📍 Вы здесь</Popup>
+          </Marker>
+        )}
+
+        {/* ✅ Обработчик событий карты */}
+        <MapEvents onLocationFound={(pos) => {
+          setCenter(pos);
+          setShowUserMarker(true);
+        }} />
       </LeafletMap>
 
       {/* Кнопка геолокации */}
-      <LocateControl onLocationFound={setCenter} />
+      <LocateButton onLocate={handleLocate} />
       
       {/* Переключатель слоёв */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-black/60 backdrop-blur-sm 
@@ -133,7 +157,6 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
                   ? 'bg-emerald-600 text-white' 
                   : 'bg-white/10 text-gray-300 hover:bg-white/20'
               }`}
-              title={(layer as any).attribution}
             >
               {layer.name}
             </button>
