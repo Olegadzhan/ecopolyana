@@ -10,7 +10,7 @@ import {
   useMapEvents,
   LayersControl 
 } from 'react-leaflet';
-import { Icon, LatLngExpression, LatLngBounds } from 'leaflet';
+import { Icon, LatLngExpression, LocationEvent } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 // ============================================
@@ -47,12 +47,17 @@ function LocationHandler({
   onLocationError: (msg: string) => void;
 }) {
   const map = useMapEvents({
-    locationfound(e) {
-      const { lat, lng, accuracy } = e;
+    // ✅ FIX: Правильная типизация и доступ к координатам
+    locationfound(e: LocationEvent) {
+      // ✅ Координаты находятся в e.latlng
+      const { lat, lng } = e.latlng;
+      const { accuracy } = e;
+      
+      console.debug('Location found:', { lat, lng, accuracy });
       onLocationFound([lat, lng]);
     },
-    locationerror(e) {
-      const messages: Record<string, string> = {
+    locationerror(e: any) {
+      const messages: Record<number, string> = {
         1: 'Доступ к геолокации запрещён',
         2: 'Позиция недоступна',
         3: 'Таймаут запроса',
@@ -62,14 +67,13 @@ function LocationHandler({
   });
 
   useEffect(() => {
-    // Авто-запрос при монтировании (не устанавливаем view сразу)
     if ('geolocation' in navigator) {
       map.locate({ 
         setView: false, 
         maxZoom: 16, 
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 300000 // 5 минут кэш
+        maximumAge: 300000
       });
     }
   }, [map]);
@@ -126,11 +130,10 @@ const MAP_LAYERS: Record<string, MapLayer> = {
     attribution: 'Tiles &copy; Esri',
     maxZoom: 19,
   },
-  // ✅ FIX: Заменён Stamen на OpenTopoMap (работает в 2025)
   terrain: {
     name: 'Рельеф',
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: 'Map data: &copy; <a href="https://openstreetmap.org">OpenStreetMap</a>, <a href="https://viewfinderpanoramas.org">SRTM</a> | Style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+    attribution: 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a>, <a href="https://viewfinderpanoramas.org">SRTM</a> | Style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
     maxZoom: 17,
   },
   dark: {
@@ -142,7 +145,7 @@ const MAP_LAYERS: Record<string, MapLayer> = {
 };
 
 const DEFAULT_LAYER = 'osm';
-const DEFAULT_CENTER: LatLngExpression = [55.7558, 37.6173]; // Москва
+const DEFAULT_CENTER: LatLngExpression = [55.7558, 37.6173];
 const DEFAULT_ZOOM = 10;
 
 interface MapContainerProps {
@@ -160,24 +163,20 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
   const [isLocating, setIsLocating] = useState(false);
   const mapRef = useRef<any>(null);
 
-  // Обработчик успешной геолокации
   const handleLocationFound = useCallback((pos: [number, number]) => {
     setUserPos(pos);
     setGeoError(null);
-    // Плавно перемещаем карту к пользователю
     if (mapRef.current) {
       mapRef.current.flyTo(pos, 14, { duration: 1.5 });
     }
   }, []);
 
-  // Обработчик ошибки геолокации
   const handleLocationError = useCallback((msg: string) => {
     setGeoError(msg);
     setIsLocating(false);
     console.debug('Geolocation error:', msg);
   }, []);
 
-  // Ручной запрос геолокации по кнопке
   const handleLocateClick = useCallback(() => {
     if (!('geolocation' in navigator)) {
       handleLocationError('Геолокация не поддерживается браузером');
@@ -205,7 +204,6 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
     );
   }, [handleLocationFound, handleLocationError]);
 
-  // Синхронизация с пропсом userLocation
   useEffect(() => {
     if (userLocation && !userPos) {
       setUserPos(userLocation);
@@ -213,7 +211,6 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
     }
   }, [userLocation, userPos]);
 
-  // Маркеры для демонстрации (Экополяна)
   const demoMarkers = [
     { pos: [55.7558, 37.6173] as LatLngExpression, title: '🌿 Экополяна', desc: 'Центр эко-технологий' },
     { pos: [55.7612, 37.6289] as LatLngExpression, title: '🎯 Зона Alpha', desc: 'AI-мониторинг' },
@@ -233,7 +230,6 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
         className="w-full h-full z-0"
         worldCopyJump={true}
       >
-        {/* ✅ LayersControl от react-leaflet для переключения слоёв */}
         <LayersControl position="topright">
           {Object.entries(MAP_LAYERS).map(([key, layer]) => (
             <LayersControl.BaseLayer 
@@ -246,13 +242,12 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
                 url={layer.url}
                 maxZoom={layer.maxZoom}
                 subdomains={['a', 'b', 'c']}
-                errorTileUrl="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+                errorTileUrl="image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
               />
             </LayersControl.BaseLayer>
           ))}
         </LayersControl>
 
-        {/* Демо-маркеры */}
         {demoMarkers.map((marker, i) => (
           <Marker key={i} position={marker.pos} icon={markerIcon}>
             <Popup>
@@ -264,7 +259,6 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
           </Marker>
         ))}
 
-        {/* Маркер пользователя */}
         {userPos && (
           <Marker position={userPos} icon={userIcon}>
             <Popup>
@@ -278,17 +272,14 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
           </Marker>
         )}
 
-        {/* Обработчик геолокации */}
         <LocationHandler 
           onLocationFound={handleLocationFound} 
           onLocationError={handleLocationError} 
         />
       </LeafletMap>
 
-      {/* Кнопка геолокации */}
       <LocateButton onClick={handleLocateClick} disabled={isLocating} />
 
-      {/* Статус геолокации */}
       {geoError && (
         <div className="absolute top-4 left-4 z-[1000] bg-red-900/90 backdrop-blur-sm 
                         border border-red-500/40 text-red-100 px-4 py-2.5 rounded-xl 
@@ -307,7 +298,6 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
         </div>
       )}
 
-      {/* Индикатор загрузки геолокации */}
       {isLocating && (
         <div className="absolute top-4 left-4 z-[1000] bg-cyan-900/90 backdrop-blur-sm 
                         border border-cyan-500/40 text-cyan-100 px-4 py-2.5 rounded-xl 
@@ -317,10 +307,9 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
         </div>
       )}
 
-      {/* Легенда слоёв */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-gray-900/90 backdrop-blur-sm 
                       border border-white/10 rounded-xl p-3 text-xs text-gray-400">
-        <p className="mb-2 text-gray-300 font-medium">Доступные слои:</p>
+        <p className="mb-2 text-gray-300 font-medium">Слои:</p>
         <div className="space-y-1">
           {Object.values(MAP_LAYERS).map((layer) => (
             <div key={layer.name} className="flex items-center gap-2">
