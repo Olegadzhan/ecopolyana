@@ -5,6 +5,10 @@ import DynamicMap from '@/components/map/DynamicMap';
 
 export type UserLocation = [number, number] | null;
 
+// ============================================
+// ВСТРОЕННЫЕ КОМПОНЕНТЫ
+// ============================================
+
 function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-emerald-500/20">
@@ -18,12 +22,11 @@ function Header() {
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <a href="#map" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">Карта</a>
+            <a href="#features" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">Технологии</a>
+            <a href="#ai-vision" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">AI Vision</a>
             <a href="#about" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">О проекте</a>
-            <a href="#contact" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">Контакты</a>
           </nav>
-          <button className="btn-primary px-4 py-2 text-sm">
-            Войти
-          </button>
+          {/* ✅ Кнопка "Войти" удалена */}
         </div>
       </div>
     </header>
@@ -33,11 +36,9 @@ function Header() {
 function Hero() {
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
-      {/* Фон с эффектами */}
       <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-emerald-950/20 to-gray-950" />
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNDBWMGg0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDE2LDE4NSwxMjksMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-50" />
       
-      {/* Декоративные элементы */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
 
@@ -64,12 +65,11 @@ function Hero() {
           <a href="#map" className="btn-primary px-8 py-4 text-base">
             🗺️ Исследовать карту
           </a>
-          <a href="#about" className="btn-secondary px-8 py-4 text-base">
-            ℹ️ Узнать больше
+          <a href="#ai-vision" className="btn-secondary px-8 py-4 text-base">
+            ✨ AI Vision
           </a>
         </div>
 
-        {/* Статистика */}
         <div className="grid grid-cols-3 gap-8 mt-16 pt-8 border-t border-white/10 animate-fade-in-up delay-400">
           <div>
             <p className="text-3xl font-bold text-emerald-400">50+</p>
@@ -86,7 +86,6 @@ function Hero() {
         </div>
       </div>
 
-      {/* Scroll indicator */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
         <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -110,16 +109,10 @@ function Features() {
       description: 'Генетическое восстановление редких видов животных',
       color: 'from-cyan-500 to-purple-500'
     },
-    {
-      icon: '🤖',
-      title: 'AI Vision',
-      description: 'Генерация образов и прогнозирование экосистем будущего',
-      color: 'from-purple-500 to-pink-500'
-    }
   ];
 
   return (
-    <section className="py-20 px-4 bg-gray-900/50">
+    <section id="features" className="py-20 px-4 bg-gray-900/50">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -130,7 +123,7 @@ function Features() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-2 gap-8">
           {features.map((feature, index) => (
             <div key={index} className="card group">
               <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform`}>
@@ -140,6 +133,149 @@ function Features() {
               <p className="text-gray-400">{feature.description}</p>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ✅ НОВЫЙ РАЗДЕЛ: AI Vision - Генерация образов будущего
+function AIVision() {
+  const [prompt, setPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+
+  const samplePrompts = [
+    'Лес будущего с биолюминесцентными растениями',
+    'Дрон-охотник с AI-визором в туманном лесу',
+    'Генетически восстановленный олень в цифровой среде',
+    'Эко-поселение с вертикальными садами и солнечными панелями',
+  ];
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return;
+    setIsGenerating(true);
+    
+    // Имитация генерации изображения (замените на реальный API)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Placeholder изображение (замените на реальный результат от AI API)
+    setGeneratedImage(`https://picsum.photos/seed/${encodeURIComponent(prompt)}/800/600`);
+    setIsGenerating(false);
+  };
+
+  return (
+    <section id="ai-vision" className="py-20 px-4 bg-gradient-to-b from-emerald-950/30 to-gray-950">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-sm mb-4">
+            <span>✨</span> AI Vision
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+              Генерация образов будущего
+            </span>
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Создавайте визуализации экосистем будущего с помощью искусственного интеллекта
+          </p>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-8 items-start">
+          {/* Панель управления */}
+          <div className="card space-y-6">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Опишите образ будущего</label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Например: Биолюминесцентный лес с летающими дронами-наблюдателями..."
+                className="input min-h-[120px] resize-none"
+                maxLength={500}
+              />
+              <p className="text-xs text-gray-500 mt-1 text-right">{prompt.length}/500</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-400 mb-3">Примеры запросов:</p>
+              <div className="flex flex-wrap gap-2">
+                {samplePrompts.map((sample, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPrompt(sample)}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 
+                               text-gray-300 hover:text-white border border-white/10 
+                               transition-all truncate max-w-[200px]"
+                  >
+                    {sample}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || !prompt.trim()}
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Генерация...
+                </>
+              ) : (
+                <>
+                  <span>✨</span>
+                  Сгенерировать образ
+                </>
+              )}
+            </button>
+
+            <div className="pt-4 border-t border-white/10">
+              <p className="text-xs text-gray-500">
+                💡 <strong>Совет:</strong> Чем детальнее описание, тем точнее результат. 
+                Указывайте стиль, освещение, композицию.
+              </p>
+            </div>
+          </div>
+
+          {/* Результат генерации */}
+          <div className="card min-h-[400px] flex items-center justify-center">
+            {generatedImage ? (
+              <div className="relative w-full">
+                <img 
+                  src={generatedImage} 
+                  alt="Сгенерированный образ"
+                  className="w-full rounded-xl border border-emerald-500/30 shadow-2xl"
+                />
+                <div className="absolute bottom-4 left-4 right-4 flex gap-2">
+                  <button className="flex-1 btn-secondary py-2 text-sm">
+                    📥 Скачать
+                  </button>
+                  <button 
+                    onClick={() => setGeneratedImage(null)}
+                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 
+                               text-gray-300 transition-colors"
+                  >
+                    🔄 Новая
+                  </button>
+                </div>
+              </div>
+            ) : isGenerating ? (
+              <div className="text-center">
+                <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-400 
+                                rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-gray-400">AI создаёт ваш образ...</p>
+                <p className="text-xs text-gray-500 mt-2">Это может занять до 30 секунд</p>
+              </div>
+            ) : (
+              <div className="text-center text-gray-500">
+                <div className="text-5xl mb-4">🎨</div>
+                <p>Введите запрос и нажмите "Сгенерировать"</p>
+                <p className="text-sm mt-2">для создания визуализации будущего</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </section>
@@ -185,100 +321,13 @@ function About() {
   );
 }
 
-function Contact() {
-  const [formData, setFormData] = useState({ name: '', email: '', message: '' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    // Имитация отправки
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSubmitting(false);
-    setSubmitted(true);
-    setFormData({ name: '', email: '', message: '' });
-  };
-
-  return (
-    <section id="contact" className="py-20 px-4 bg-gray-900/50">
-      <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            <span className="text-gradient">Связаться с нами</span>
-          </h2>
-          <p className="text-gray-400">
-            Есть вопросы или предложения? Напишите нам!
-          </p>
-        </div>
-
-        {submitted ? (
-          <div className="card text-center py-12">
-            <div className="text-5xl mb-4">✅</div>
-            <h3 className="text-xl font-semibold text-white mb-2">Сообщение отправлено!</h3>
-            <p className="text-gray-400">Мы свяжемся с вами в ближайшее время</p>
-            <button 
-              onClick={() => setSubmitted(false)}
-              className="mt-6 btn-secondary px-6 py-2"
-            >
-              Отправить ещё
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="card space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Имя</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="input"
-                  placeholder="Ваше имя"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="input"
-                  placeholder="your@email.com"
-                  required
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Сообщение</label>
-              <textarea
-                value={formData.message}
-                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                className="input min-h-[150px] resize-none"
-                placeholder="Ваше сообщение..."
-                required
-              />
-            </div>
-            <button 
-              type="submit" 
-              disabled={isSubmitting}
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Отправка...' : 'Отправить сообщение'}
-            </button>
-          </form>
-        )}
-      </div>
-    </section>
-  );
-}
+// ✅ Раздел "Контакты" УДАЛЁН по запросу
 
 function Footer() {
   return (
     <footer className="py-12 px-4 border-t border-white/10">
       <div className="max-w-7xl mx-auto">
-        <div className="grid md:grid-cols-4 gap-8 mb-8">
+        <div className="grid md:grid-cols-3 gap-8 mb-8">
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-2xl">🌿</span>
@@ -292,16 +341,9 @@ function Footer() {
             <h4 className="font-semibold text-white mb-4">Навигация</h4>
             <ul className="space-y-2 text-sm text-gray-400">
               <li><a href="#map" className="hover:text-emerald-400 transition-colors">Карта</a></li>
+              <li><a href="#features" className="hover:text-emerald-400 transition-colors">Технологии</a></li>
+              <li><a href="#ai-vision" className="hover:text-emerald-400 transition-colors">AI Vision</a></li>
               <li><a href="#about" className="hover:text-emerald-400 transition-colors">О проекте</a></li>
-              <li><a href="#contact" className="hover:text-emerald-400 transition-colors">Контакты</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-white mb-4">Контакты</h4>
-            <ul className="space-y-2 text-sm text-gray-400">
-              <li>📧 info@ecopolyana.ru</li>
-              <li>📱 +7 (999) 000-00-00</li>
-              <li>📍 Москва, Россия</li>
             </ul>
           </div>
         </div>
@@ -320,7 +362,6 @@ function Footer() {
 export default function HomePage() {
   const [userLocation, setUserLocation] = useState<UserLocation>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -334,15 +375,10 @@ export default function HomePage() {
               position.coords.longitude
             ]);
           },
-          (error) => {
-            setLocationError('Геолокация недоступна. Вы можете включить её вручную на карте.');
-            console.debug('Геолокация:', error.message);
+          () => {
+            // Тихий фолбэк
           },
-          { 
-            enableHighAccuracy: false, 
-            timeout: 8000, 
-            maximumAge: 600000
-          }
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
         );
       }
     };
@@ -351,26 +387,19 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // SSR-заглушка
   if (!isMounted) {
     return (
       <main className="min-h-screen bg-gray-950 text-gray-100">
         <Header />
         <Hero />
         <Features />
-        <section id="map" className="py-16 px-4 bg-gradient-to-b from-gray-900 to-emerald-950/30">
+        <section className="py-16 px-4">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-3">
-                🗺️ Интерактивная карта Экополяны
-              </h2>
-              <p className="text-gray-400 max-w-2xl mx-auto">Загрузка карты...</p>
-            </div>
             <div className="w-full h-[500px] bg-emerald-900/20 rounded-2xl animate-pulse border border-emerald-500/30" />
           </div>
         </section>
+        <AIVision />
         <About />
-        <Contact />
         <Footer />
       </main>
     );
@@ -398,11 +427,8 @@ export default function HomePage() {
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto">
               Исследуйте территорию проекта, переключайте слои карты и находите 
-              интересные локации с помощью AI-навигации
+              интересные локации
             </p>
-            {locationError && (
-              <p className="text-amber-400 text-sm mt-2">{locationError}</p>
-            )}
           </div>
           
           <Suspense fallback={
@@ -425,8 +451,13 @@ export default function HomePage() {
         </div>
       </section>
       
+      {/* ✨ AI VISION - Генерация образов */}
+      <AIVision />
+      
       <About />
-      <Contact />
+      
+      {/* ✅ Контакты удалены */}
+      
       <Footer />
     </main>
   );
