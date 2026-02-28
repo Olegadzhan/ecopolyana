@@ -47,13 +47,8 @@ function LocationHandler({
   onLocationError: (msg: string) => void;
 }) {
   const map = useMapEvents({
-    // ✅ FIX: Правильная типизация и доступ к координатам
     locationfound(e: LocationEvent) {
-      // ✅ Координаты находятся в e.latlng
       const { lat, lng } = e.latlng;
-      const { accuracy } = e;
-      
-      console.debug('Location found:', { lat, lng, accuracy });
       onLocationFound([lat, lng]);
     },
     locationerror(e: any) {
@@ -108,43 +103,48 @@ function LocateButton({ onClick, disabled }: { onClick: () => void; disabled: bo
 }
 
 // ============================================
-// Типы и конфигурация
+// Типы и конфигурация слоёв
 // ============================================
 interface MapLayer {
   name: string;
   url: string;
   attribution: string;
   maxZoom?: number;
+  key: string;
 }
 
-const MAP_LAYERS: Record<string, MapLayer> = {
-  osm: {
+const MAP_LAYERS: MapLayer[] = [
+  {
+    key: 'osm',
     name: 'OpenStreetMap',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>',
+    attribution: '&copy; <a href="https://osm.org/copyright" target="_blank">OpenStreetMap</a>',
     maxZoom: 19,
   },
-  satellite: {
+  {
+    key: 'satellite',
     name: 'Спутник',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Tiles &copy; Esri',
+    attribution: 'Tiles &copy; <a href="https://esri.com" target="_blank">Esri</a>',
     maxZoom: 19,
   },
-  terrain: {
+  {
+    key: 'terrain',
     name: 'Рельеф',
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a>, <a href="https://viewfinderpanoramas.org">SRTM</a> | Style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+    attribution: 'Map data &copy; <a href="https://openstreetmap.org" target="_blank">OpenStreetMap</a>, <a href="https://viewfinderpanoramas.org" target="_blank">SRTM</a> | Style: &copy; <a href="https://opentopomap.org" target="_blank">OpenTopoMap</a>',
     maxZoom: 17,
   },
-  dark: {
+  {
+    key: 'dark',
     name: 'Тёмная',
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://osm.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com">CARTO</a>',
+    attribution: '&copy; <a href="https://osm.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com" target="_blank">CARTO</a>',
     maxZoom: 19,
   },
-};
+];
 
-const DEFAULT_LAYER = 'osm';
+const DEFAULT_LAYER_KEY = 'osm';
 const DEFAULT_CENTER: LatLngExpression = [55.7558, 37.6173];
 const DEFAULT_ZOOM = 10;
 
@@ -156,12 +156,15 @@ interface MapContainerProps {
 // ГЛАВНЫЙ КОМПОНЕНТ
 // ============================================
 export default function MapContainer({ userLocation }: MapContainerProps) {
-  const [activeLayer, setActiveLayer] = useState(DEFAULT_LAYER);
+  const [activeLayerKey, setActiveLayerKey] = useState(DEFAULT_LAYER_KEY);
   const [center, setCenter] = useState<LatLngExpression>(userLocation || DEFAULT_CENTER);
   const [userPos, setUserPos] = useState<[number, number] | null>(userLocation || null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [showLayerControl, setShowLayerControl] = useState(false);
   const mapRef = useRef<any>(null);
+
+  const activeLayer = MAP_LAYERS.find(l => l.key === activeLayerKey) || MAP_LAYERS[0];
 
   const handleLocationFound = useCallback((pos: [number, number]) => {
     setUserPos(pos);
@@ -174,18 +177,15 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
   const handleLocationError = useCallback((msg: string) => {
     setGeoError(msg);
     setIsLocating(false);
-    console.debug('Geolocation error:', msg);
   }, []);
 
   const handleLocateClick = useCallback(() => {
     if (!('geolocation' in navigator)) {
-      handleLocationError('Геолокация не поддерживается браузером');
+      handleLocationError('Геолокация не поддерживается');
       return;
     }
-    
     setIsLocating(true);
     setGeoError(null);
-    
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const pos: [number, number] = [position.coords.latitude, position.coords.longitude];
@@ -194,9 +194,9 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
       },
       (error) => {
         const messages: Record<number, string> = {
-          1: 'Разрешите доступ к местоположению в настройках браузера',
-          2: 'Не удалось определить позицию. Попробуйте ещё раз.',
-          3: 'Превышено время ожидания. Проверьте соединение.',
+          1: 'Разрешите доступ в настройках браузера',
+          2: 'Не удалось определить позицию',
+          3: 'Превышено время ожидания',
         };
         handleLocationError(messages[error.code] || 'Ошибка геолокации');
       },
@@ -230,24 +230,27 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
         className="w-full h-full z-0"
         worldCopyJump={true}
       >
+        {/* ✅ LayersControl от react-leaflet */}
         <LayersControl position="topright">
-          {Object.entries(MAP_LAYERS).map(([key, layer]) => (
+          {MAP_LAYERS.map((layer) => (
             <LayersControl.BaseLayer 
-              key={key} 
+              key={layer.key}
               name={layer.name}
-              checked={key === activeLayer}
+              checked={layer.key === activeLayerKey}
             >
               <TileLayer
+                key={layer.key}
                 attribution={layer.attribution}
                 url={layer.url}
                 maxZoom={layer.maxZoom}
                 subdomains={['a', 'b', 'c']}
-                errorTileUrl="image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+                errorTileUrl="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
               />
             </LayersControl.BaseLayer>
           ))}
         </LayersControl>
 
+        {/* Демо-маркеры */}
         {demoMarkers.map((marker, i) => (
           <Marker key={i} position={marker.pos} icon={markerIcon}>
             <Popup>
@@ -259,6 +262,7 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
           </Marker>
         ))}
 
+        {/* Маркер пользователя */}
         {userPos && (
           <Marker position={userPos} icon={userIcon}>
             <Popup>
@@ -278,49 +282,80 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
         />
       </LeafletMap>
 
+      {/* ✅ Кастомный контрол слоёв (дублирующий, всегда видимый) */}
+      <div className="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
+        {/* Кнопка переключения видимости */}
+        <button
+          onClick={() => setShowLayerControl(!showLayerControl)}
+          className="bg-gray-900/90 backdrop-blur-sm border border-emerald-500/40 
+                     text-white px-3 py-2 rounded-xl shadow-lg flex items-center gap-2
+                     hover:bg-gray-800 transition-all"
+        >
+          <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                  d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+          <span className="text-sm font-medium">Слои</span>
+        </button>
+
+        {/* Выпадающий список слоёв */}
+        {showLayerControl && (
+          <div className="bg-gray-900/95 backdrop-blur-sm border border-emerald-500/40 
+                          rounded-xl p-2 shadow-lg min-w-[180px]">
+            <p className="text-xs text-gray-400 px-2 py-1 mb-1">Выберите слой:</p>
+            {MAP_LAYERS.map((layer) => (
+              <button
+                key={layer.key}
+                onClick={() => {
+                  setActiveLayerKey(layer.key);
+                  setShowLayerControl(false);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-2 ${
+                  activeLayerKey === layer.key
+                    ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/50'
+                    : 'text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${
+                  activeLayerKey === layer.key ? 'bg-emerald-400' : 'bg-gray-600'
+                }`} />
+                {layer.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Кнопка геолокации */}
       <LocateButton onClick={handleLocateClick} disabled={isLocating} />
 
+      {/* Статус геолокации */}
       {geoError && (
-        <div className="absolute top-4 left-4 z-[1000] bg-red-900/90 backdrop-blur-sm 
+        <div className="absolute top-20 left-4 z-[1000] bg-red-900/90 backdrop-blur-sm 
                         border border-red-500/40 text-red-100 px-4 py-2.5 rounded-xl 
-                        shadow-lg flex items-center gap-2 text-sm">
+                        shadow-lg flex items-center gap-2 text-sm max-w-[280px]">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                   d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <span>{geoError}</span>
-          <button 
-            onClick={() => setGeoError(null)}
-            className="ml-2 hover:text-white transition-colors"
-          >
-            ✕
-          </button>
+          <span className="truncate">{geoError}</span>
+          <button onClick={() => setGeoError(null)} className="ml-2 hover:text-white">✕</button>
         </div>
       )}
 
       {isLocating && (
-        <div className="absolute top-4 left-4 z-[1000] bg-cyan-900/90 backdrop-blur-sm 
+        <div className="absolute top-20 left-4 z-[1000] bg-cyan-900/90 backdrop-blur-sm 
                         border border-cyan-500/40 text-cyan-100 px-4 py-2.5 rounded-xl 
                         shadow-lg flex items-center gap-2 text-sm">
           <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-          <span>Определение местоположения...</span>
+          <span>Определение...</span>
         </div>
       )}
 
+      {/* Индикатор текущего слоя */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-gray-900/90 backdrop-blur-sm 
-                      border border-white/10 rounded-xl p-3 text-xs text-gray-400">
-        <p className="mb-2 text-gray-300 font-medium">Слои:</p>
-        <div className="space-y-1">
-          {Object.values(MAP_LAYERS).map((layer) => (
-            <div key={layer.name} className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${
-                activeLayer === Object.keys(MAP_LAYERS).find(k => MAP_LAYERS[k].name === layer.name) 
-                  ? 'bg-emerald-400' : 'bg-gray-600'
-              }`} />
-              <span>{layer.name}</span>
-            </div>
-          ))}
-        </div>
+                      border border-white/10 rounded-xl px-3 py-2 text-xs text-gray-400">
+        <span className="text-emerald-400 font-medium">{activeLayer.name}</span>
       </div>
     </div>
   );
