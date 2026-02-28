@@ -8,9 +8,7 @@ const inter = Inter({ subsets: ['latin', 'cyrillic'] });
 export const metadata: Metadata = {
   title: 'Экополяна — Технологии будущего',
   description: 'Современная охота с AI, дронами и биотехнологиями',
-  icons: {
-    icon: '/logo.png',
-  },
+  icons: { icon: '/logo.png' },
 };
 
 export default function RootLayout({
@@ -20,12 +18,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru" className="scroll-smooth">
-      <body className={`${inter.className} bg-gray-950 text-gray-100 antialiased`}>
-        {/* ✅ ЕДИНЫЙ HEADER — только здесь */}
+      <body className={`${inter.className} bg-gray-950 text-gray-100 antialiased min-h-screen flex flex-col`}>
+        {/* ✅ ЕДИНЫЙ HEADER */}
         <Header />
         
-        {/* Основной контент с отступом под фиксированный header */}
-        <main className="pt-16 min-h-screen">
+        {/* Контент с отступом под фиксированный header */}
+        <main className="pt-16 flex-1">
           {children}
         </main>
         
@@ -36,7 +34,7 @@ export default function RootLayout({
 }
 
 // ============================================
-// HEADER КОМПОНЕНТ (встроен в layout)
+// HEADER КОМПОНЕНТ
 // ============================================
 function Header() {
   return (
@@ -81,7 +79,7 @@ function Header() {
             </a>
           </nav>
           
-          {/* Мобильное меню (упрощённое) */}
+          {/* Мобильное меню */}
           <div className="md:hidden flex items-center gap-2">
             <a href="/map" className="p-2 text-gray-300 hover:text-white">🗺️</a>
             <a href="/generator" className="p-2 text-gray-300 hover:text-white">✨</a>
@@ -97,7 +95,7 @@ function Header() {
 // ============================================
 function Footer() {
   return (
-    <footer className="py-8 px-4 border-t border-white/10 glass-panel mt-auto">
+    <footer className="py-8 px-4 border-t border-white/10 glass-panel">
       <div className="max-w-7xl mx-auto text-center text-sm text-gray-500">
         <p>© 2025 Экополяна. Все права защищены.</p>
       </div>
