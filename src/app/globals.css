@@ -2,40 +2,473 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========================================
+   ГЛОБАЛЬНЫЕ СТИЛИ ЭКОПОЛЯНА
+   Тема: "Мир будущего • Современная охота"
+   ======================================== */
+
+/* 🎨 CSS-переменные темы */
 :root {
-  --background: #050505;
-  --foreground: #e5e5e5;
-  --neon-green: #00ff9d;
-  --cyber-blue: #00f0ff;
+  /* Цветовая палитра */
+  --color-bg-primary: #030712;        /* gray-950 */
+  --color-bg-secondary: #111827;      /* gray-900 */
+  --color-bg-tertiary: #1f2937;       /* gray-800 */
+  
+  --color-text-primary: #f9fafb;      /* gray-50 */
+  --color-text-secondary: #9ca3af;    /* gray-400 */
+  --color-text-muted: #6b7280;        /* gray-500 */
+  
+  --color-accent-emerald: #10b981;    /* emerald-500 */
+  --color-accent-emerald-dark: #059669; /* emerald-600 */
+  --color-accent-cyan: #06b6d4;       /* cyan-500 */
+  --color-accent-purple: #a855f7;     /* purple-500 */
+  
+  /* Градиенты */
+  --gradient-primary: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  --gradient-glow: radial-gradient(ellipse at center, rgba(16,185,129,0.15) 0%, transparent 70%);
+  
+  /* Эффекты */
+  --shadow-glow: 0 0 40px rgba(16, 185, 129, 0.15);
+  --shadow-glow-strong: 0 0 80px rgba(16, 185, 129, 0.25);
+  --border-glow: 0 0 0 1px rgba(16, 185, 129, 0.3);
+  
+  /* Анимации */
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* 🌙 Тёмная тема по умолчанию */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-primary: #030712;
+    --color-bg-secondary: #111827;
+  }
+}
+
+/* ========================================
+   БАЗОВЫЕ СТИЛИ
+   ======================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: 'Inter', sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 
+               'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  line-height: 1.6;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.glass-panel {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.text-glow {
-  text-shadow: 0 0 10px rgba(0, 255, 157, 0.5);
-}
-
+/* Убираем стандартный скроллбар для кастомного */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: var(--color-bg-secondary);
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: var(--color-accent-emerald);
   border-radius: 4px;
+  transition: var(--transition-smooth);
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--neon-green);
+  background: var(--color-accent-emerald-dark);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-accent-emerald) var(--color-bg-secondary);
+}
+
+/* ========================================
+   УТИЛИТЫ И КОМПОНЕНТЫ
+   ======================================== */
+
+@layer components {
+  /* Кнопки в стиле "будущее" */
+  .btn-primary {
+    @apply relative inline-flex items-center justify-center px-6 py-3 
+           font-medium rounded-xl overflow-hidden
+           bg-gradient-to-r from-emerald-600 to-cyan-600
+           text-white shadow-lg shadow-emerald-500/25
+           transition-all duration-300
+           hover:shadow-emerald-500/40 hover:scale-[1.02]
+           active:scale-[0.98] focus:outline-none focus:ring-2 
+           focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950;
+  }
+  
+  .btn-primary::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
+           -translate-x-full hover:translate-x-full transition-transform duration-700 ease-in-out;
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 
+           font-medium rounded-xl
+           bg-white/5 border border-emerald-500/30
+           text-emerald-300 hover:bg-white/10 hover:border-emerald-400/50
+           transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-emerald-400;
+  }
+  
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 
+           font-medium rounded-lg
+           text-gray-300 hover:text-white hover:bg-white/10
+           transition-all duration-200;
+  }
+  
+  /* Карточки */
+  .card {
+    @apply relative p-6 rounded-2xl 
+           bg-gradient-to-br from-gray-900/80 to-gray-800/40
+           border border-white/10 backdrop-blur-sm
+           shadow-xl shadow-black/20
+           hover:border-emerald-500/30 hover:shadow-emerald-500/10
+           transition-all duration-300;
+  }
+  
+  .card-glow {
+    @apply relative;
+  }
+  
+  .card-glow::after {
+    content: '';
+    @apply absolute -inset-px rounded-2xl 
+           bg-gradient-to-r from-emerald-500/0 via-emerald-500/20 to-cyan-500/0
+           opacity-0 group-hover:opacity-100 blur-xl
+           transition-opacity duration-500 pointer-events-none;
+  }
+  
+  /* Заголовки с градиентом */
+  .text-gradient {
+    @apply bg-gradient-to-r from-emerald-400 via-cyan-400 to-purple-400 
+           bg-clip-text text-transparent bg-[length:200%_auto]
+           animate-gradient;
+  }
+  
+  /* Ссылки */
+  .link {
+    @apply text-emerald-400 hover:text-emerald-300 
+           transition-colors duration-200
+           hover:underline decoration-emerald-500/50 underline-offset-4;
+  }
+  
+  /* Инпуты */
+  .input {
+    @apply w-full px-4 py-3 rounded-xl 
+           bg-white/5 border border-white/10
+           text-white placeholder-gray-500
+           focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20
+           focus:outline-none transition-all duration-200;
+  }
+  
+  /* Бейджи */
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full 
+           text-xs font-medium
+           bg-emerald-500/10 text-emerald-400 border border-emerald-500/20;
+  }
+}
+
+/* ========================================
+   АНИМАЦИИ
+   ======================================== */
+
+@layer utilities {
+  @keyframes gradient {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  
+  .animate-gradient {
+    animation: gradient 8s ease infinite;
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: var(--shadow-glow); }
+    50% { box-shadow: var(--shadow-glow-strong); }
+  }
+  
+  .animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
+  
+  /* Задержка анимации для stagger-эффектов */
+  .delay-100 { animation-delay: 100ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+  .delay-500 { animation-delay: 500ms; }
+}
+
+/* ========================================
+   LEAFLET MAP СТИЛИ
+   ======================================== */
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  border-radius: 1rem;
+  z-index: 1;
+  background: var(--color-bg-secondary);
+}
+
+/* Контрол слоёв */
+.leaflet-control-layers {
+  background: rgba(17, 24, 39, 0.95) !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(12px);
+}
+
+.leaflet-control-layers-expanded {
+  padding: 0.75rem !important;
+  min-width: 180px;
+}
+
+.leaflet-control-layers-toggle {
+  background: rgba(16, 185, 129, 0.9) !important;
+  border-radius: 0.5rem !important;
+  width: 40px !important;
+  height: 40px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7'/%3E%3C/svg%3E") !important;
+  background-size: 20px 20px !important;
+  background-position: center !important;
+}
+
+.leaflet-control-layers-selector {
+  accent-color: var(--color-accent-emerald);
+  margin-right: 8px !important;
+}
+
+.leaflet-control-layers-label {
+  color: var(--color-text-primary) !important;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Попапы */
+.leaflet-popup-content-wrapper {
+  background: rgba(17, 24, 39, 0.98) !important;
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(16px);
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  padding: 1rem 1.25rem !important;
+  color: var(--color-text-primary) !important;
+  font-size: 14px;
+  line-height: 1.5;
+  min-width: 200px;
+}
+
+.leaflet-popup-tip {
+  background: rgba(17, 24, 39, 0.98) !important;
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+  border-top: none !important;
+}
+
+.leaflet-popup-close-button {
+  color: var(--color-text-secondary) !important;
+  font-size: 24px !important;
+  padding: 0 8px 8px 0 !important;
+  transition: color 0.2s;
+}
+
+.leaflet-popup-close-button:hover {
+  color: var(--color-text-primary) !important;
+}
+
+/* Маркеры */
+.leaflet-marker-icon {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+  transition: transform 0.2s ease;
+}
+
+.leaflet-marker-icon:hover {
+  transform: scale(1.1) translateY(-4px);
+  z-index: 1000 !important;
+}
+
+.leaflet-marker-shadow {
+  opacity: 0.6;
+}
+
+/* Контрол зума */
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.leaflet-control-zoom a {
+  background: rgba(17, 24, 39, 0.9) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  font-size: 20px !important;
+  border-radius: 0.5rem !important;
+  margin: 4px 0 !important;
+  transition: var(--transition-smooth);
+}
+
+.leaflet-control-zoom a:hover {
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: var(--color-accent-emerald) !important;
+  color: var(--color-accent-emerald) !important;
+}
+
+.leaflet-control-zoom a:first-child {
+  border-radius: 0.5rem 0.5rem 0 0 !important;
+}
+
+.leaflet-control-zoom a:last-child {
+  border-radius: 0 0 0.5rem 0.5rem !important;
+}
+
+/* Атрибуция */
+.leaflet-control-attribution {
+  background: rgba(17, 24, 39, 0.8) !important;
+  border-radius: 0.5rem 0 0 0 !important;
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-accent-cyan) !important;
+  text-decoration: none !important;
+}
+
+.leaflet-control-attribution a:hover {
+  text-decoration: underline !important;
+}
+
+/* ========================================
+   АДАПТИВНОСТЬ
+   ======================================== */
+
+@media (max-width: 768px) {
+  .leaflet-control-layers-expanded {
+    padding: 0.5rem !important;
+    font-size: 13px;
+  }
+  
+  .leaflet-popup-content {
+    padding: 0.875rem 1rem !important;
+    font-size: 13px;
+    min-width: 180px;
+  }
+  
+  .leaflet-control-zoom a {
+    width: 32px !important;
+    height: 32px !important;
+    line-height: 32px !important;
+  }
+}
+
+/* ========================================
+   ДОСТУПНОСТЬ
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Фокус для клавиатурной навигации */
+:focus-visible {
+  outline: 2px solid var(--color-accent-emerald);
+  outline-offset: 2px;
+}
+
+/* Высокая контрастность */
+@media (prefers-contrast: high) {
+  :root {
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #d1d5db;
+    --border-glow: 0 0 0 2px rgba(16, 185, 129, 0.6);
+  }
+  
+  .btn-primary,
+  .btn-secondary {
+    border-width: 2px;
+  }
+}
+
+/* ========================================
+   ПЕЧАТЬ
+   ======================================== */
+
+@media print {
+  .no-print,
+  .leaflet-container,
+  .btn-primary,
+  .btn-secondary {
+    display: none !important;
+  }
+  
+  body {
+    background: white;
+    color: black;
+    font-size: 12pt;
+  }
 }
