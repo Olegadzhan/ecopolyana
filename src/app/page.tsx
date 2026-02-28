@@ -1,84 +1,106 @@
 'use client';
 
-import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { ArrowRight, Cpu, Leaf, Target } from 'lucide-react';
-import { useLanguage } from '@/context/LanguageContext';
-import { usePageMeta } from '@/hooks/usePageMeta';
+import { useState, useEffect } from 'react';
+import Header from '@/components/layout/Header';
+import Hero from '@/components/sections/Hero';
+import Features from '@/components/sections/Features';
+import MapSection from '@/components/sections/MapSection';
+import About from '@/components/sections/About';
+import Contact from '@/components/sections/Contact';
+import Footer from '@/components/layout/Footer';
 
-export default function Home() {
-  const { t } = useLanguage();
-  
-  usePageMeta(t('meta.title'), t('meta.description'));
+// Тип для пользовательской геолокации
+export type UserLocation = [number, number] | null;
+
+export default function HomePage() {
+  const [userLocation, setUserLocation] = useState<UserLocation>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    
+    // Запрос геолокации с задержкой для лучшего UX
+    const requestLocation = () => {
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setUserLocation([
+              position.coords.latitude,
+              position.coords.longitude
+            ]);
+          },
+          (error) => {
+            // Тихий фолбэк: пользователь может включить геолокацию вручную на карте
+            console.debug('Геолокация не получена:', error.message);
+          },
+          { 
+            enableHighAccuracy: false, 
+            timeout: 8000, 
+            maximumAge: 600000 // 10 минут кэш
+          }
+        );
+      }
+    };
+
+    // Небольшая задержка чтобы не блокировать первую отрисовку
+    const timer = setTimeout(requestLocation, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!isMounted) {
+    // SSR-заглушка для предотвращения гидратационных ошибок
+    return (
+      <main className="min-h-screen bg-gray-950 text-gray-100">
+        <Header />
+        <Hero />
+        <Features />
+        {/* Заглушка для карты во время SSR */}
+        <section className="py-16 px-4 bg-gradient-to-b from-gray-900 to-emerald-950/30">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-3">
+                🗺️ Интерактивная карта Экополяны
+              </h2>
+              <p className="text-gray-400 max-w-2xl mx-auto">
+                Загрузка карты...
+              </p>
+            </div>
+            <div className="w-full h-[500px] bg-emerald-900/20 rounded-2xl animate-pulse border border-emerald-500/30" />
+          </div>
+        </section>
+        <About />
+        <Contact />
+        <Footer />
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-full z-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-green-900/20 rounded-full blur-[100px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-900/20 rounded-full blur-[100px]" />
+    <main className="min-h-screen bg-gray-950 text-gray-100 selection:bg-emerald-500/30 selection:text-emerald-200">
+      {/* Глобальные декоративные элементы фона */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 right-1/3 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl" />
       </div>
 
-      <div className="z-10 max-w-4xl w-full text-center space-y-8">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <span className="px-3 py-1 border border-green-500/30 rounded-full text-xs text-green-400 uppercase tracking-widest mb-4 inline-block bg-green-900/10">
-            {t('home.system')}
-          </span>
-          <h1 className="text-6xl md:text-8xl font-bold tracking-tighter mb-4">
-            {t('home.title1')}<span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-cyan-400">{t('home.title2')}</span>
-          </h1>
-          <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto">
-            {t('home.description')}
-          </p>
-        </motion.div>
+      <Header />
+      
+      <Hero />
+      
+      <Features />
+      
+      {/* 🔁 Карта заменяет три старых секции: Smart Hunting, Bio-Tech, AI Vision */}
+      <MapSection userLocation={userLocation} />
+      
+      <About />
+      
+      <Contact />
+      
+      <Footer />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-          <FeatureCard 
-            icon={<Target className="w-8 h-8 text-cyan-400" />}
-            title={t('home.smartHunting')}
-            desc={t('home.smartHuntingDesc')}
-          />
-          <FeatureCard 
-            icon={<Leaf className="w-8 h-8 text-green-400" />}
-            title={t('home.bioTech')}
-            desc={t('home.bioTechDesc')}
-          />
-          <FeatureCard 
-            icon={<Cpu className="w-8 h-8 text-purple-400" />}
-            title={t('home.aiVision')}
-            desc={t('home.aiVisionDesc')}
-          />
-        </div>
-
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1, duration: 0.8 }}
-          className="pt-12"
-        >
-          <Link href="/generator">
-            <button className="group relative px-8 py-4 bg-white text-black font-bold rounded-none overflow-hidden transition-all hover:scale-105">
-              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-green-400 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="relative flex items-center gap-2">
-                {t('home.launchGenerator')} <ArrowRight size={20} />
-              </span>
-            </button>
-          </Link>
-        </motion.div>
-      </div>
+      {/* Глобальные скрипты или аналитика */}
+      {/* <Analytics /> */}
     </main>
-  );
-}
-
-function FeatureCard({ icon, title, desc }: any) {
-  return (
-    <div className="glass-panel p-6 rounded-xl hover:bg-white/5 transition-colors text-left">
-      <div className="mb-4">{icon}</div>
-      <h3 className="text-xl font-bold mb-2">{title}</h3>
-      <p className="text-sm text-gray-400">{desc}</p>
-    </div>
   );
 }
