@@ -1,7 +1,10 @@
+'use client';  // ✅ Важно: делаем layout клиентским для провайдеров
+
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Image from 'next/image';
+import { LanguageProvider } from '@/context/LanguageContext'; // ✅ Импорт провайдера
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] });
 
@@ -11,6 +14,7 @@ export const metadata: Metadata = {
   icons: { icon: '/logo.png' },
 };
 
+// ✅ RootLayout теперь 'use client' для поддержки контекстов
 export default function RootLayout({
   children,
 }: {
@@ -19,15 +23,20 @@ export default function RootLayout({
   return (
     <html lang="ru" className="scroll-smooth">
       <body className={`${inter.className} bg-gray-950 text-gray-100 antialiased min-h-screen flex flex-col`}>
-        {/* ✅ ЕДИНЫЙ HEADER */}
-        <Header />
-        
-        {/* Контент с отступом под фиксированный header */}
-        <main className="pt-16 flex-1">
-          {children}
-        </main>
-        
-        <Footer />
+        {/* ✅ LanguageProvider оборачивает всё приложение */}
+        <LanguageProvider>
+          
+          {/* Единый Header */}
+          <Header />
+          
+          {/* Контент с отступом под фиксированный header */}
+          <main className="pt-16 flex-1">
+            {children}
+          </main>
+          
+          <Footer />
+          
+        </LanguageProvider>
       </body>
     </html>
   );
