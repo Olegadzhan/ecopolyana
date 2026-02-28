@@ -5,14 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, X, Grid3X3, Server, CheckCircle, AlertCircle, Key, Music, Play, Pause, Volume2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
-// Пресеты - популярные запросы для генерации
+// Пресеты - популярные запросы для генерации (с понятными названиями)
 const PRESETS = [
-  { label: 'generator.presetCyberHunter', prompt: 'cybernetic hunter in neon forest, futuristic armor, drone companion, dark atmosphere' },
-  { label: 'generator.presetBioWolf', prompt: 'genetically enhanced wolf, glowing blue eyes, cybernetic implants, snowy mountain landscape' },
-  { label: 'generator.presetEcoCity', prompt: 'futuristic eco city, vertical gardens, flying vehicles, clean energy, harmony with nature' },
-  { label: 'generator.presetSpaceExplorer', prompt: 'space explorer on alien planet, two moons, exotic flora, sci-fi suit, dramatic lighting' },
-  { label: 'generator.presetDragon', prompt: 'mechanical dragon, steampunk design, fire breath, medieval castle background, epic scene' },
-  { label: 'generator.presetOcean', prompt: 'underwater civilization, bioluminescent creatures, coral architecture, deep ocean, mysterious' },
+  { label: '🤖 Кибер-охотник', prompt: 'cybernetic hunter in neon forest, futuristic armor, drone companion, dark atmosphere' },
+  { label: '🐺 Био-волк', prompt: 'genetically enhanced wolf, glowing blue eyes, cybernetic implants, snowy mountain landscape' },
+  { label: '🌿 Эко-город', prompt: 'futuristic eco city, vertical gardens, flying vehicles, clean energy, harmony with nature' },
+  { label: '🚀 Космо-исследователь', prompt: 'space explorer on alien planet, two moons, exotic flora, sci-fi suit, dramatic lighting' },
+  { label: '🐉 Механический дракон', prompt: 'mechanical dragon, steampunk design, fire breath, medieval castle background, epic scene' },
+  { label: '🌊 Подводная цивилизация', prompt: 'underwater civilization, bioluminescent creatures, coral architecture, deep ocean, mysterious' },
 ];
 
 // Стили генерации - 6 стилей
@@ -72,7 +72,7 @@ export default function GeneratorPage() {
   const [gridMode, setGridMode] = useState(false);
   const [showModels, setShowModels] = useState(false);
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
-  const [musicEnabled, setMusicEnabled] = useState(true); // ✅ ПЕРЕИМЕНОВАНО из generateMusic
+  const [musicEnabled, setMusicEnabled] = useState(true);
   const audioRefs = useRef<{ [key: number]: HTMLAudioElement | null }>({});
   const taskCounter = useRef(0);
 
@@ -136,15 +136,16 @@ export default function GeneratorPage() {
     return `${imagePrompt.split(',')[0]}, ${musicStyle}, instrumental, 120 bpm`;
   }, []);
 
-  // ✅ ГЕНЕРАЦИЯ МУЗЫКИ - ПЕРЕИМЕНОВАНО из generateMusic
+  // ✅ Генерация музыки - УВЕЛИЧЕНА ДЛИТЕЛЬНОСТЬ до 60 секунд
   const generateMusicTrack = useCallback(async (musicPrompt: string, taskId: number): Promise<string> => {
     const randomSeed = Math.floor(Math.random() * 10000);
-    const musicUrl = `/api/audio?prompt=${encodeURIComponent(musicPrompt)}&model=elevenmusic&duration=30&instrumental=true&seed=${randomSeed}`;
+    // Увеличена длительность с 30 до 60 секунд
+    const musicUrl = `/api/audio?prompt=${encodeURIComponent(musicPrompt)}&model=elevenmusic&duration=60&instrumental=true&seed=${randomSeed}`;
     
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Music timeout'));
-      }, 60000);
+      }, 90000); // 90 секунд таймаут
       
       const audio = new Audio(musicUrl);
       
@@ -246,7 +247,7 @@ export default function GeneratorPage() {
         let musicUrl = '';
         let musicPrompt = '';
         
-        if (musicEnabled) { // ✅ ИСПОЛЬЗУЕМ ПЕРЕИМЕНОВАННУЮ ПЕРЕМЕННУЮ
+        if (musicEnabled) {
           setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
             ...taskObj, 
             musicStatus: 'generating'
@@ -254,7 +255,7 @@ export default function GeneratorPage() {
           
           try {
             musicPrompt = generateMusicPrompt(task.prompt, task.style);
-            musicUrl = await generateMusicTrack(musicPrompt, task.id); // ✅ ИСПОЛЬЗУЕМ ПЕРЕИМЕНОВАННУЮ ФУНКЦИЮ
+            musicUrl = await generateMusicTrack(musicPrompt, task.id);
             
             setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
               ...taskObj, 
@@ -416,7 +417,7 @@ export default function GeneratorPage() {
         {/* Панель управления */}
         <div className="glass-panel p-6 md:p-8 rounded-2xl mb-8">
           
-          {/* Статус API ключа */}
+          {/* Статус API ключа - ИСПРАВЛЕНО */}
           <div className="mb-6">
             <div className={`p-4 rounded-lg border flex items-center gap-3 ${
               apiKeyConfigured 
@@ -427,8 +428,7 @@ export default function GeneratorPage() {
                 <>
                   <CheckCircle size={20} className="text-green-400" />
                   <div>
-                    <p className="text-green-400 text-sm font-medium">API ключ Pollinations.ai настроен</p>
-                    <p className="text-gray-500 text-xs">Генерация изображений и музыки через официальный API</p>
+                    <p className="text-green-400 text-sm font-medium">API ключ</p>
                   </div>
                 </>
               ) : (
@@ -445,14 +445,13 @@ export default function GeneratorPage() {
             </div>
           </div>
 
-          {/* Опция генерации музыки */}
+          {/* Опция генерации музыки - ИСПРАВЛЕНО описание */}
           <div className="mb-6">
             <label className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5 cursor-pointer hover:bg-white/10 transition-colors">
               <div className="flex items-center gap-3">
                 <Music size={20} className="text-cyan-400" />
                 <div>
                   <p className="text-sm font-medium text-white">Генерировать музыку</p>
-                  <p className="text-xs text-gray-400">Автоматически создавать саундтрек на основе описания изображения</p>
                 </div>
               </div>
               <input
@@ -567,7 +566,7 @@ export default function GeneratorPage() {
             </div>
           </div>
 
-          {/* Пресеты - 6 популярных запросов */}
+          {/* Пресеты - ИСПРАВЛЕНО: понятные названия вместо технических ключей */}
           <div className="mb-6">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-3">
               <Sparkles size={16} /> {t('generator.presetsLabel')}
@@ -579,7 +578,7 @@ export default function GeneratorPage() {
                   onClick={() => setMainPrompt(preset.prompt)}
                   className="px-3 py-2 rounded-lg text-xs font-medium bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-900/50 transition-all text-left truncate"
                 >
-                  {t(preset.label)}
+                  {preset.label}
                 </button>
               ))}
             </div>
