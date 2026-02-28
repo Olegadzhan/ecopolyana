@@ -9,17 +9,30 @@
 
 /* 🎨 CSS-переменные */
 :root {
-  /* Цвета */
+  /* Цвета фона */
   --color-bg: #030712;
   --color-bg-secondary: #111827;
+  --color-bg-tertiary: #1f2937;
+  
+  /* Цвета текста */
   --color-text: #f9fafb;
   --color-text-muted: #9ca3af;
+  --color-text-disabled: #6b7280;
+  
+  /* Акцентные цвета */
+  --color-accent-green: #4ade80;
+  --color-accent-cyan: #22d3ee;
+  --color-accent-blue: #60a5fa;
+  --color-accent-purple: #a855f7;
+  --color-accent-pink: #f472b6;
   
   /* Градиенты */
   --gradient-primary: linear-gradient(135deg, #4ade80 0%, #22d3ee 50%, #60a5fa 100%);
   --gradient-glow: radial-gradient(ellipse at center, rgba(74, 222, 128, 0.15) 0%, transparent 70%);
+  --gradient-green: linear-gradient(135deg, #16a34a 0%, #0891b2 100%);
+  --gradient-purple: linear-gradient(135deg, #9333ea 0%, #db2777 100%);
   
-  /* Эффекты */
+  /* Glass эффект */
   --glass-bg: rgba(17, 24, 39, 0.6);
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
@@ -50,6 +63,8 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -196,6 +211,26 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
 .animate-gradient {
   animation: gradient 8s linear infinite;
   background-size: 200% 200%;
@@ -211,6 +246,22 @@ body {
 
 .animate-fade-in-up {
   animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-bounce {
+  animation: bounce 2s ease-in-out infinite;
 }
 
 /* Задержки для stagger-анимаций */
@@ -233,49 +284,23 @@ body {
   background: var(--color-bg-secondary);
 }
 
+/* ✅ СКРЫВАЕМ стандартную атрибуцию Leaflet */
+.leaflet-control-attribution {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* ✅ СКРЫВАЕМ стандартный LayersControl */
 .leaflet-control-layers {
-  background: rgba(17, 24, 39, 0.95) !important;
-  border: 1px solid rgba(74, 222, 128, 0.4) !important;
-  border-radius: 0.75rem !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4) !important;
-  backdrop-filter: blur(12px);
-  color: #e5e7eb !important;
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
 }
 
-.leaflet-control-layers-toggle {
-  background: rgba(74, 222, 128, 0.9) !important;
-  border-radius: 0.5rem !important;
-  width: 40px !important;
-  height: 40px !important;
-}
-
-.leaflet-popup-content-wrapper {
-  background: rgba(17, 24, 39, 0.98) !important;
-  border: 1px solid rgba(74, 222, 128, 0.5) !important;
-  border-radius: 1rem !important;
-  backdrop-filter: blur(16px);
-  color: #e5e7eb !important;
-}
-
-.leaflet-popup-content {
-  margin: 0 !important;
-  padding: 1rem 1.25rem !important;
-  font-size: 14px;
-}
-
-.leaflet-popup-tip {
-  background: rgba(17, 24, 39, 0.98) !important;
-  border: 1px solid rgba(74, 222, 128, 0.5) !important;
-}
-
-.leaflet-marker-icon {
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
-  transition: transform 0.2s ease;
-}
-
-.leaflet-marker-icon:hover {
-  transform: scale(1.1) translateY(-4px);
-  z-index: 1000 !important;
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .leaflet-control-zoom a {
@@ -292,14 +317,52 @@ body {
   color: #4ade80 !important;
 }
 
-.leaflet-control-attribution {
-  background: rgba(17, 24, 39, 0.8) !important;
-  border-radius: 0.5rem 0 0 0 !important;
-  font-size: 11px !important;
+.leaflet-popup-content-wrapper {
+  background: rgba(17, 24, 39, 0.98) !important;
+  border: 1px solid rgba(74, 222, 128, 0.5) !important;
+  border-radius: 1rem !important;
+  backdrop-filter: blur(16px);
+  color: #e5e7eb !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
-.leaflet-control-attribution a {
-  color: #22d3ee !important;
+.leaflet-popup-content {
+  margin: 0 !important;
+  padding: 1rem 1.25rem !important;
+  font-size: 14px;
+  line-height: 1.5;
+  min-width: 200px;
+}
+
+.leaflet-popup-tip {
+  background: rgba(17, 24, 39, 0.98) !important;
+  border: 1px solid rgba(74, 222, 128, 0.5) !important;
+  border-top: none !important;
+}
+
+.leaflet-popup-close-button {
+  color: #9ca3af !important;
+  font-size: 24px !important;
+  padding: 0 8px 8px 0 !important;
+  transition: color 0.2s;
+}
+
+.leaflet-popup-close-button:hover {
+  color: #f9fafb !important;
+}
+
+.leaflet-marker-icon {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+  transition: transform 0.2s ease;
+}
+
+.leaflet-marker-icon:hover {
+  transform: scale(1.1) translateY(-4px);
+  z-index: 1000 !important;
+}
+
+.leaflet-marker-shadow {
+  opacity: 0.6;
 }
 
 /* ========================================
@@ -340,15 +403,16 @@ body {
     font-size: 2.5rem !important;
   }
   
-  .leaflet-control-layers-expanded {
-    padding: 0.5rem !important;
-    font-size: 13px;
-  }
-  
   .btn-primary,
   .btn-secondary {
     width: 100%;
     justify-content: center;
+  }
+  
+  .leaflet-control-zoom a {
+    width: 32px !important;
+    height: 32px !important;
+    line-height: 32px !important;
   }
 }
 
@@ -399,5 +463,32 @@ body {
     background: white;
     color: black;
     font-size: 12pt;
+  }
+}
+
+/* ========================================
+   УТИЛИТЫ
+   ======================================== */
+
+@layer utilities {
+  .text-shadow-glow {
+    text-shadow: 0 0 40px rgba(74, 222, 128, 0.6), 0 0 80px rgba(34, 211, 238, 0.4);
+  }
+  
+  .bg-grid-pattern {
+    background-image: 
+      linear-gradient(to right, rgba(74, 222, 128, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(74, 222, 128, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  
+  .backdrop-blur-md {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  
+  .backdrop-blur-lg {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 }
