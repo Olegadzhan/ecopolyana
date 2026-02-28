@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, X, Grid3X3 } from 'lucide-react';
+import { Sparkles, Download, Image as ImageIcon, Trash2, History, Palette, RefreshCw, X, Grid3X3, Server, CheckCircle, AlertCircle } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { generateWithFallback, sortedProviders } from '@/lib/imageProviders';
 
 const PRESETS = [
   { label: 'generator.presetCyberHunter', prompt: 'cybernetic hunter in neon forest, futuristic armor, drone companion' },
@@ -25,6 +26,7 @@ interface GeneratedImage {
   prompt: string;
   timestamp: string;
   taskId: number;
+  provider?: string;
 }
 
 interface GenerationTask {
@@ -33,6 +35,8 @@ interface GenerationTask {
   style: typeof STYLES[0];
   status: 'pending' | 'loading' | 'completed' | 'error';
   imageUrl: string;
+  provider?: string;
+  currentProvider?: string;
   error?: string;
 }
 
@@ -45,6 +49,7 @@ export default function GeneratorPage() {
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [gridMode, setGridMode] = useState(false);
+  const [showProviders, setShowProviders] = useState(false);
   const taskCounter = useRef(0);
 
   useEffect(() => {
@@ -58,7 +63,7 @@ export default function GeneratorPage() {
     }
   }, []);
 
-  const saveToHistory = useCallback((url: string, promptText: string, taskId: number) => {
+  const saveToHistory = useCallback((url: string, promptText: string, taskId: number, provider?: string) => {
     try {
       const newImage: GeneratedImage = {
         id: Date.now(),
@@ -66,6 +71,7 @@ export default function GeneratorPage() {
         prompt: promptText,
         timestamp: new Date().toISOString(),
         taskId,
+        provider,
       };
       const updated = [newImage, ...history].slice(0, 20);
       setHistory(updated);
@@ -74,57 +80,6 @@ export default function GeneratorPage() {
       console.error('Error saving to history:', e);
     }
   }, [history]);
-
-  // УЛУЧШЕННАЯ функция генерации - без fetch, только direct URL
-  const generateSingleImage = useCallback((prompt: string, style: typeof STYLES[0]): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const fullPrompt = `${prompt}, ${style.suffix}, futuristic, high detail, 8k`;
-      const randomSeed = Math.floor(Math.random() * 10000);
-      
-      // Прямая ссылка на Pollinations - работает без CORS проблем
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}&nologo=true`;
-      
-      // Создаём Image объект для проверки загрузки
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      
-      // Таймаут 45 секунд
-      const timeout = setTimeout(() => {
-        reject(new Error('Timeout'));
-      }, 45000);
-      
-      img.onload = () => {
-        clearTimeout(timeout);
-        resolve(imageUrl);
-      };
-      
-      img.onerror = () => {
-        clearTimeout(timeout);
-        // Пробуем альтернативный URL
-        const fallbackUrl = `https://pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=1024&height=1024&seed=${randomSeed}`;
-        const fallbackImg = new Image();
-        fallbackImg.crossOrigin = 'anonymous';
-        
-        const fallbackTimeout = setTimeout(() => {
-          reject(new Error('Generation failed'));
-        }, 45000);
-        
-        fallbackImg.onload = () => {
-          clearTimeout(fallbackTimeout);
-          resolve(fallbackUrl);
-        };
-        
-        fallbackImg.onerror = () => {
-          clearTimeout(fallbackTimeout);
-          reject(new Error('Generation failed'));
-        };
-        
-        fallbackImg.src = fallbackUrl;
-      };
-      
-      img.src = imageUrl;
-    });
-  }, []);
 
   const generateAll = useCallback(async () => {
     if (!mainPrompt.trim()) return;
@@ -150,23 +105,41 @@ export default function GeneratorPage() {
     setTasks(newTasks);
     const updatedTasks = [...newTasks];
     
-    // Генерируем все задачи параллельно
-    const promises = updatedTasks.map(async (task, index) => {
-      setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { ...taskObj, status: 'loading' } : taskObj));
+    const promises = updatedTasks.map(async (task) => {
+      setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
+        ...taskObj, 
+        status: 'loading',
+        currentProvider: sortedProviders[0].name 
+      } : taskObj));
       
       try {
-        const imageUrl = await generateSingleImage(task.prompt, task.style);
-        setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { ...taskObj, status: 'completed', imageUrl } : taskObj));
-        saveToHistory(imageUrl, mainPrompt, task.id);
+        const fullPrompt = `${task.prompt}, ${task.style.suffix}, futuristic, high detail, 8k`;
+        const result = await generateWithFallback(fullPrompt, 1024, 1024);
+        
+        if (result) {
+          setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
+            ...taskObj, 
+            status: 'completed', 
+            imageUrl: result.url,
+            provider: result.provider 
+          } : taskObj));
+          saveToHistory(result.url, mainPrompt, task.id, result.provider);
+        } else {
+          throw new Error('All providers failed');
+        }
       } catch (error) {
         console.error(`Task ${task.id} failed:`, error);
-        setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { ...taskObj, status: 'error', error: t('generator.error') } : taskObj));
+        setTasks(prev => prev.map(taskObj => taskObj.id === task.id ? { 
+          ...taskObj, 
+          status: 'error', 
+          error: t('generator.error') 
+        } : taskObj));
       }
     });
     
     await Promise.all(promises);
     setIsGenerating(false);
-  }, [mainPrompt, selectedStyle, gridMode, saveToHistory, t, generateSingleImage]);
+  }, [mainPrompt, selectedStyle, gridMode, saveToHistory, t]);
 
   const clearHistory = useCallback(() => {
     setHistory([]);
@@ -199,7 +172,6 @@ export default function GeneratorPage() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
     } catch (e) {
-      // Fallback: открыть в новой вкладке
       window.open(url, '_blank');
     }
   }, []);
@@ -213,7 +185,7 @@ export default function GeneratorPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-6xl"
       >
-        {/* Заголовок - крупный и яркий */}
+        {/* Заголовок */}
         <div className="text-center mb-10">
           <motion.h1 
             initial={{ opacity: 0, scale: 0.9 }}
@@ -236,10 +208,53 @@ export default function GeneratorPage() {
         {/* Панель управления */}
         <div className="glass-panel p-6 md:p-8 rounded-2xl mb-8">
           
+          {/* Статус провайдеров */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
+                <Server size={16} /> Провайдеры генерации
+              </label>
+              <button
+                onClick={() => setShowProviders(!showProviders)}
+                className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                {showProviders ? 'Скрыть' : 'Показать список'}
+              </button>
+            </div>
+            
+            <AnimatePresence>
+              {showProviders && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-3 bg-black/30 rounded-lg border border-white/10">
+                    {sortedProviders.map((provider, idx) => (
+                      <div 
+                        key={provider.id}
+                        className="flex items-center gap-2 text-xs"
+                      >
+                        <CheckCircle size={12} className="text-green-400" />
+                        <span className="text-gray-300">{provider.name}</span>
+                        <span className="text-gray-500 ml-auto">#{idx + 1}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <AlertCircle size={12} />
+                    При недоступности основного провайдера автоматически используется следующий
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Режим генерации */}
           <div className="mb-6 flex items-center justify-between">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400">
-              <Grid3X3 size={16} /> {t('generator.styleLabel')}
+              <Grid3X3 size={16} /> Режим генерации
             </label>
             <div className="flex gap-2">
               <button
@@ -382,18 +397,30 @@ export default function GeneratorPage() {
                       <div className="aspect-video flex flex-col items-center justify-center text-cyan-400">
                         <div className="w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-3" />
                         <span className="text-sm">{t('generator.generatingText')}</span>
+                        {taskObj.currentProvider && (
+                          <span className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                            <Server size={10} /> {taskObj.currentProvider}
+                          </span>
+                        )}
                         <span className="text-xs text-gray-500 mt-1">{t('generator.generatingTime')}</span>
                       </div>
                     )}
 
                     {taskObj.status === 'completed' && taskObj.imageUrl && (
-                      <img 
-                        src={taskObj.imageUrl} 
-                        alt={`Generated ${taskObj.id}`}
-                        className="w-full aspect-video object-cover"
-                        crossOrigin="anonymous"
-                        loading="lazy"
-                      />
+                      <>
+                        <img 
+                          src={taskObj.imageUrl} 
+                          alt={`Generated ${taskObj.id}`}
+                          className="w-full aspect-video object-cover"
+                          loading="lazy"
+                        />
+                        {taskObj.provider && (
+                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded text-xs text-gray-400 flex items-center gap-1">
+                            <CheckCircle size={10} className="text-green-400" />
+                            {taskObj.provider}
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {taskObj.status === 'error' && (
@@ -436,7 +463,7 @@ export default function GeneratorPage() {
           </div>
         </div>
 
-        {/* История генераций */}
+        {/* История */}
         <AnimatePresence>
           {showHistory && (
             <motion.div
@@ -470,6 +497,11 @@ export default function GeneratorPage() {
                       aria-label={`Load image: ${item.prompt}`}
                     >
                       <img src={item.url} alt="thumbnail" className="w-full h-full object-cover" loading="lazy" />
+                      {item.provider && (
+                        <div className="absolute bottom-1 left-1 px-1 py-0.5 bg-black/70 rounded text-[10px] text-gray-400">
+                          {item.provider.split(' ')[0]}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
