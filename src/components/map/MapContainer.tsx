@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { Icon, LatLngExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { mapLayers, defaultLayer, initialCenter, initialZoom } from '@/lib/mapLayers';
 
-// Fix для иконок Leaflet в Next.js
 const markerIcon = new Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -15,13 +13,11 @@ const markerIcon = new Icon({
   iconAnchor: [12, 41],
 });
 
-// Компонент для отслеживания геолокации
 function LocateControl({ onLocationFound }: { onLocationFound: (pos: [number, number]) => void }) {
   const map = useMap();
 
   const locateUser = useCallback(() => {
     if (!navigator.geolocation) return;
-    
     map.locate({ setView: true, maxZoom: 14, enableHighAccuracy: true });
   }, [map]);
 
@@ -29,23 +25,12 @@ function LocateControl({ onLocationFound }: { onLocationFound: (pos: [number, nu
     const handleLocationFound = (e: any) => {
       const { lat, lng } = e.latlng;
       onLocationFound([lat, lng]);
-      
-      // Добавляем маркер пользователя
       const userMarker = new Marker([lat, lng], { icon: markerIcon }).addTo(map);
       userMarker.bindPopup('📍 Вы здесь').openPopup();
     };
 
-    const handleLocationError = (e: any) => {
-      console.warn('Геолокация не доступна:', e.message);
-    };
-
     map.on('locationfound', handleLocationFound);
-    map.on('locationerror', handleLocationError);
-
-    return () => {
-      map.off('locationfound', handleLocationFound);
-      map.off('locationerror', handleLocationError);
-    };
+    return () => { map.off('locationfound', handleLocationFound); };
   }, [map, onLocationFound]);
 
   return (
@@ -53,16 +38,9 @@ function LocateControl({ onLocationFound }: { onLocationFound: (pos: [number, nu
       onClick={locateUser}
       className="absolute top-4 right-4 z-[1000] bg-emerald-600 hover:bg-emerald-700 
                  text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2
-                 transition-all duration-200 backdrop-blur-sm"
-      aria-label="Определить моё местоположение"
+                 transition-all duration-200"
     >
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-      </svg>
-      <span className="hidden sm:inline">Моя позиция</span>
+      <span>📍 Моя позиция</span>
     </button>
   );
 }
@@ -72,66 +50,42 @@ interface MapContainerProps {
 }
 
 export default function MapContainer({ userLocation }: MapContainerProps) {
-  const [activeLayer, setActiveLayer] = useState(defaultLayer);
-  const [center, setCenter] = useState<LatLngExpression>(userLocation || initialCenter);
+  const [activeLayer, setActiveLayer] = useState('osm');
+  const [center, setCenter] = useState<LatLngExpression>(userLocation || [55.7558, 37.6173]);
 
-  const handleLocationFound = useCallback((pos: [number, number]) => {
-    setCenter(pos);
-  }, []);
+  const layers = {
+    osm: { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', name: 'OSM' },
+    satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', name: 'Спутник' },
+    terrain: { url: 'https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}{r}.png', name: 'Рельеф' },
+    dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', name: 'Тёмная' },
+  };
 
   return (
     <div className="relative w-full h-full min-h-[500px] rounded-2xl overflow-hidden 
-                    border border-emerald-500/30 shadow-2xl shadow-emerald-500/10">
-      
-      <MapContainer 
-        center={center} 
-        zoom={initialZoom} 
-        scrollWheelZoom={true}
-        className="w-full h-full z-0"
-        zoomControl={false}
-      >
-        <LayersControl position="topright">
-          {Object.entries(mapLayers).map(([key, layer]) => (
-            <LayersControl.BaseLayer 
-              key={key} 
-              name={layer.name} 
-              checked={key === activeLayer}
-            >
-              <TileLayer
-                attribution={layer.attribution}
-                url={layer.url}
-                maxZoom={19}
-              />
-            </LayersControl.BaseLayer>
-          ))}
-        </LayersControl>
-
-        {/* Маркеры интересных мест Экополяны */}
+                    border border-emerald-500/30 shadow-2xl">
+      <MapContainer center={center} zoom={10} scrollWheelZoom={true} className="w-full h-full">
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url={layers[activeLayer as keyof typeof layers].url}
+          maxZoom={19}
+        />
         <Marker position={[55.7558, 37.6173]} icon={markerIcon}>
           <Popup>
             <div className="text-sm">
               <strong>🌿 Экополяна</strong><br/>
-              Центр эко-технологий будущего
+              Центр эко-технологий
             </div>
           </Popup>
         </Marker>
-
-        {userLocation && (
-          <Marker position={userLocation} icon={markerIcon}>
-            <Popup>📍 Ваше местоположение</Popup>
-          </Marker>
-        )}
       </MapContainer>
-
-      {/* Контролы поверх карты */}
-      <LocateControl onLocationFound={handleLocationFound} />
+      <LocateControl onLocationFound={setCenter} />
       
-      {/* Переключатель слоёв (дополнительный UI) */}
+      {/* Переключатель слоёв */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-black/60 backdrop-blur-sm 
                       rounded-xl p-3 border border-emerald-500/30">
-        <p className="text-xs text-emerald-300 mb-2">Слой карты:</p>
+        <p className="text-xs text-emerald-300 mb-2">Слой:</p>
         <div className="flex flex-wrap gap-1">
-          {Object.entries(mapLayers).map(([key, layer]) => (
+          {Object.entries(layers).map(([key, layer]) => (
             <button
               key={key}
               onClick={() => setActiveLayer(key)}
@@ -140,9 +94,8 @@ export default function MapContainer({ userLocation }: MapContainerProps) {
                   ? 'bg-emerald-600 text-white' 
                   : 'bg-white/10 text-gray-300 hover:bg-white/20'
               }`}
-              title={layer.description}
             >
-              {layer.name.split(' ')[0]}
+              {layer.name}
             </button>
           ))}
         </div>
