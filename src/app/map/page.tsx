@@ -1,119 +1,128 @@
+// src/app/map/page.tsx или src/components/Map.tsx
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { motion } from 'framer-motion';
-import { MapPin } from 'lucide-react';
-import Image from 'next/image';
-import dynamic from 'next/dynamic';
-
-// ✅ Dynamic import с отключением SSR для карты
-const SafeMapContainer = dynamic(
-  () => import('@/components/map/SafeMapContainer'),
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="w-full h-[600px] bg-gray-900/50 rounded-2xl border border-emerald-500/30 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">Загрузка карты...</p>
-        </div>
-      </div>
-    )
-  }
-);
-
-const SearchBox = dynamic(
-  () => import('@/components/map/SearchBox'),
-  { ssr: false }
-);
+import { useState } from 'react';
 
 export default function MapPage() {
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [searchPos, setSearchPos] = useState<[number, number] | null>(null);
-  const [searchAddress, setSearchAddress] = useState<string>('');
-  const [isMounted, setIsMounted] = useState(false);
+  // Состояния для трех полей
+  const [city, setCity] = useState('');
+  const [street, setStreet] = useState('');
+  const [building, setBuilding] = useState('');
 
-  useEffect(() => {
-    setIsMounted(true);
-    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => setUserLocation([position.coords.latitude, position.coords.longitude]),
-        () => {},
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
-      );
+  // Функция для объединения адреса при поиске
+  const handleSearch = () => {
+    const fullAddress = [city, street, building]
+      .filter(part => part.trim() !== '')
+      .join(', ');
+    
+    if (fullAddress) {
+      // Здесь ваша логика поиска на карте
+      console.log('Поиск адреса:', fullAddress);
+      // geocodeAddress(fullAddress);
     }
-  }, []);
-
-  const handleSearchSelect = (pos: [number, number], address: string) => {
-    setSearchPos(pos);
-    setSearchAddress(address);
   };
 
-  // SSR-заглушка
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center pt-20">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-400">Загрузка карты...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      {/* Фоновые эффекты */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <motion.div className="absolute -top-40 -right-40 w-80 h-80 bg-green-500/10 rounded-full blur-3xl"
-          animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 10, repeat: Infinity }} />
-        <motion.div className="absolute top-1/2 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl"
-          animate={{ scale: [1.1, 1, 1.1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 10, repeat: Infinity, delay: 2 }} />
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-emerald-900 to-green-900 text-white">
+      {/* Заголовок как на сайте */}
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-4xl font-bold mb-2">🗺️ Интерактивная карта</h1>
+        <p className="text-emerald-200/80 mb-8">
+          Исследуйте территорию проекта с переключением слоёв и геолокацией
+        </p>
 
-      {/* Контент */}
-      <div className="pt-8 pb-8 px-4">
-        <div className="max-w-7xl mx-auto">
-          <motion.div className="text-center mb-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <h1 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-green-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              Интерактивная карта
-            </h1>
-            <p className="text-gray-400 max-w-2xl mx-auto mb-6">
-              Исследуйте территорию проекта с переключением слоёв и геолокацией
-            </p>
-            
-            {/* Поиск адреса */}
-            <div className="flex justify-center">
-              <Suspense fallback={<div className="w-full max-w-2xl h-12 bg-gray-900/50 rounded-xl animate-pulse" />}>
-                <SearchBox onLocationSelect={handleSearchSelect} />
-              </Suspense>
+        {/* Панель поиска с тремя полями */}
+        <div className="bg-emerald-800/30 backdrop-blur-sm rounded-2xl p-6 border border-emerald-700/50 mb-8">
+          <h2 className="text-xl font-semibold mb-4">📍 Поиск адреса</h2>
+          
+          <div className="grid md:grid-cols-4 gap-4">
+            {/* Город */}
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-emerald-300 mb-1">
+                Город
+              </label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Например: Москва"
+                className="w-full px-4 py-3 bg-emerald-900/50 border border-emerald-700 rounded-lg text-white placeholder-emerald-700/70 focus:border-emerald-500 focus:outline-none"
+              />
             </div>
-            
-            {searchAddress && (
-              <p className="text-xs text-gray-500 mt-2 flex items-center justify-center gap-1">
-                <MapPin size={12} /> {searchAddress}
-              </p>
-            )}
-          </motion.div>
 
-          {/* Карта */}
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            className="glass-panel rounded-2xl overflow-hidden border border-emerald-500/30 shadow-2xl shadow-emerald-500/10"
-          >
-            <Suspense fallback={<div className="w-full h-[600px] bg-gray-900/50 flex items-center justify-center"><div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin" /></div>}>
-              <SafeMapContainer userLocation={userLocation} searchLocation={searchPos} searchAddress={searchAddress} />
-            </Suspense>
-          </motion.div>
-
-          {/* Инфо-блок */}
-          <motion.div className="mt-6 glass-panel p-6 rounded-2xl border border-white/10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-            <h3 className="font-bold text-lg mb-3 text-emerald-400">🗺️ Возможности карты</h3>
-            <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-400">
-              <div className="flex items-start gap-2"><span className="text-emerald-400">🔍</span><div><p className="font-medium text-white">Поиск адреса</p><p>Введите любой адрес для быстрого перехода</p></div></div>
-              <div className="flex items-start gap-2"><span className="text-cyan-400">📍</span><div><p className="font-medium text-white">Геолокация</p><p>Автоматическое определение местоположения</p></div></div>
-              <div className="flex items-start gap-2"><span className="text-blue-400">🗂️</span><div><p className="font-medium text-white">Слои карты</p><p>Переключение между стандартной и тёмной темой</p></div></div>
+            {/* Улица */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-emerald-300 mb-1">
+                Улица
+              </label>
+              <input
+                type="text"
+                value={street}
+                onChange={(e) => setStreet(e.target.value)}
+                placeholder="Например: Тверская"
+                className="w-full px-4 py-3 bg-emerald-900/50 border border-emerald-700 rounded-lg text-white placeholder-emerald-700/70 focus:border-emerald-500 focus:outline-none"
+              />
             </div>
-          </motion.div>
+
+            {/* Дом */}
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-emerald-300 mb-1">
+                Дом
+              </label>
+              <input
+                type="text"
+                value={building}
+                onChange={(e) => setBuilding(e.target.value)}
+                placeholder="Например: 1"
+                className="w-full px-4 py-3 bg-emerald-900/50 border border-emerald-700 rounded-lg text-white placeholder-emerald-700/70 focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Кнопки действий */}
+          <div className="flex flex-wrap gap-4 mt-4">
+            <button
+              onClick={handleSearch}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-semibold transition-colors flex items-center gap-2"
+            >
+              <span>🔍</span> Найти на карте
+            </button>
+
+            <button
+              onClick={() => {
+                setCity('');
+                setStreet('');
+                setBuilding('');
+              }}
+              className="px-6 py-3 bg-emerald-800/50 hover:bg-emerald-700/50 rounded-lg font-semibold transition-colors flex items-center gap-2"
+            >
+              <span>🗑️</span> Очистить
+            </button>
+
+            <button
+              className="px-6 py-3 bg-emerald-800/50 hover:bg-emerald-700/50 rounded-lg font-semibold transition-colors flex items-center gap-2 ml-auto"
+            >
+              <span>📍</span> Геолокация
+            </button>
+          </div>
+        </div>
+
+        {/* Здесь будет ваша карта */}
+        <div className="bg-emerald-900/50 rounded-2xl border border-emerald-800/50 h-[600px] flex items-center justify-center">
+          <p className="text-emerald-300/50">Карта загружается...</p>
+        </div>
+
+        {/* Панель слоев */}
+        <div className="mt-4 flex gap-4">
+          <button className="px-4 py-2 bg-emerald-800/30 hover:bg-emerald-700/30 rounded-lg text-sm transition-colors">
+            🗺️ Стандартная
+          </button>
+          <button className="px-4 py-2 bg-emerald-800/30 hover:bg-emerald-700/30 rounded-lg text-sm transition-colors">
+            🌙 Тёмная
+          </button>
+          <button className="px-4 py-2 bg-emerald-800/30 hover:bg-emerald-700/30 rounded-lg text-sm transition-colors">
+            🛰️ Спутник
+          </button>
         </div>
       </div>
     </div>
