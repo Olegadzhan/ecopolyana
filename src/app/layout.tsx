@@ -1,20 +1,21 @@
-'use client';  // ✅ Важно: делаем layout клиентским для провайдеров
-
+// src/app/layout.tsx
+// ❌ УДАЛИТЬ: 'use client' — layout должен быть серверным для metadata
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Image from 'next/image';
-import { LanguageProvider } from '@/context/LanguageContext'; // ✅ Импорт провайдера
+import ClientProviders from '@/components/providers/ClientProviders';
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] });
 
+// ✅ metadata работает только в серверных компонентах
 export const metadata: Metadata = {
   title: 'Экополяна — Технологии будущего',
   description: 'Современная охота с AI, дронами и биотехнологиями',
   icons: { icon: '/logo.png' },
+  metadataBase: new URL('https://ecopolyana.vercel.app'),
 };
 
-// ✅ RootLayout теперь 'use client' для поддержки контекстов
 export default function RootLayout({
   children,
 }: {
@@ -23,8 +24,9 @@ export default function RootLayout({
   return (
     <html lang="ru" className="scroll-smooth">
       <body className={`${inter.className} bg-gray-950 text-gray-100 antialiased min-h-screen flex flex-col`}>
-        {/* ✅ LanguageProvider оборачивает всё приложение */}
-        <LanguageProvider>
+        
+        {/* ✅ Клиентские провайдеры внутри серверного layout */}
+        <ClientProviders>
           
           {/* Единый Header */}
           <Header />
@@ -36,14 +38,14 @@ export default function RootLayout({
           
           <Footer />
           
-        </LanguageProvider>
+        </ClientProviders>
       </body>
     </html>
   );
 }
 
 // ============================================
-// HEADER КОМПОНЕНТ
+// HEADER КОМПОНЕНТ (встроен в layout)
 // ============================================
 function Header() {
   return (
