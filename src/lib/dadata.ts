@@ -151,9 +151,9 @@ export interface DadataRequestOptions {
 }
 
 // ============================================================================
-// ERROR HANDLING
+// ERROR HANDLING (КЛАССЫ БЕЗ export - только в финальном блоке!)
 // ============================================================================
-export class DadataApiError extends Error {
+class DadataApiError extends Error {
   constructor(
     public readonly code: string,
     message: string,
@@ -171,14 +171,14 @@ export class DadataApiError extends Error {
   }
 }
 
-export class DadataRateLimitError extends DadataApiError {
+class DadataRateLimitError extends DadataApiError {
   constructor(message: string, details?: any) {
     super('RATE_LIMIT', message, details, 429);
     this.name = 'DadataRateLimitError';
   }
 }
 
-export class DadataInvalidKeyError extends DadataApiError {
+class DadataInvalidKeyError extends DadataApiError {
   constructor(message: string = 'Invalid API key') {
     super('INVALID_API_KEY', message, undefined, 403);
     this.name = 'DadataInvalidKeyError';
