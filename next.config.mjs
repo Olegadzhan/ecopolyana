@@ -2,7 +2,7 @@
 // NEXT.JS CONFIGURATION - PRODUCTION READY
 // Файл: next.config.mjs (ES Module syntax)
 // Проект: Экополяна - Конвертер охотничьих данных
-// Совместимость: Next.js 14.2.5
+// Совместимость: Next.js 14.2.5 + Vercel
 // ============================================================================
 
 // ============================================================================
@@ -20,6 +20,8 @@ const nextConfig = {
   // ========================================================================
   // РЕЖИМ ВЫВОДА ДЛЯ VERCEL
   // ========================================================================
+  // 'standalone' уменьшает размер сборки, но может вызывать проблемы с critters
+  // Если возникают ошибки, попробуйте закомментировать эту строку
   output: 'standalone',
 
   // ========================================================================
@@ -31,35 +33,18 @@ const nextConfig = {
   // ОПТИМИЗАЦИЯ ИЗОБРАЖЕНИЙ NEXT.JS (ТОЛЬКО ВАЛИДНЫЕ СВОЙСТВА ДЛЯ 14.2.5)
   // ========================================================================
   images: {
-    // Разрешенные домены для оптимизации изображений Next.js Image
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'ecopolyana.vercel.app',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.vercel.app',
-      },
+      { protocol: 'https', hostname: '**' },
+      { protocol: 'https', hostname: 'ecopolyana.vercel.app' },
+      { protocol: 'https', hostname: '*.vercel.app' },
     ],
-    // Форматы изображений для автоматической конвертации
     formats: ['image/webp', 'image/avif'],
-    // Минимальное время кэширования оптимизированных изображений (в секундах)
     minimumCacheTTL: 60,
-    // Разрешения для адаптивных изображений
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    // Разрешить загрузку изображений с невалидным SSL (только для dev)
     unoptimized: process.env.NODE_ENV === 'development',
-    // Разрешить загрузку SVG (с осторожностью)
     dangerouslyAllowSVG: false,
-    // CSP для SVG изображений
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-    // Тип disposition для скачивания изображений
     contentDispositionType: 'inline',
   },
 
@@ -67,54 +52,22 @@ const nextConfig = {
   // WEBPACK КОНФИГУРАЦИЯ
   // ========================================================================
   webpack: (config, { isServer, dev, webpack, buildId }) => {
-    // --------------------------------------------------------------------
-    // Настройки только для серверной сборки
-    // --------------------------------------------------------------------
     if (isServer) {
-      // Разрешаем нативные Node.js модули для работы с внешними API
       config.externals = [
         ...(config.externals || []),
-        'child_process',
-        'fs',
-        'path',
-        'os',
-        'util',
-        'stream',
-        'crypto',
-        'zlib',
-        'https',
-        'http',
-        'url',
-        'querystring',
-        'net',
-        'tls',
-        'dns',
-        'buffer',
-        'events',
-        'assert',
-        'string_decoder',
-        'tty',
-        'constants',
-        'module',
-        'vm',
-        'readline',
-        'repl',
-        'inspector',
-        'async_hooks',
-        'trace_events',
-        'perf_hooks',
-        'worker_threads',
-        'wasi',
+        'child_process', 'fs', 'path', 'os', 'util', 'stream', 'crypto',
+        'zlib', 'https', 'http', 'url', 'querystring', 'net', 'tls', 'dns',
+        'buffer', 'events', 'assert', 'string_decoder', 'tty', 'constants',
+        'module', 'vm', 'readline', 'repl', 'inspector', 'async_hooks',
+        'trace_events', 'perf_hooks', 'worker_threads', 'wasi',
       ];
 
-      // Игнорируем предупреждения о динамических импортах Python-скриптов
       config.plugins.push(
         new webpack.IgnorePlugin({
           resourceRegExp: /^(python|pyinstaller|pywin32|pandas|openpyxl|xlrd|numpy|requests|packaging)$/,
         })
       );
 
-      // Добавляем алиасы для удобства импортов на сервере
       config.resolve.alias = {
         ...config.resolve.alias,
         '@': path.join(process.cwd(), 'src'),
@@ -129,36 +82,28 @@ const nextConfig = {
       };
     }
 
-    // --------------------------------------------------------------------
-    // Настройки для клиентской сборки
-    // --------------------------------------------------------------------
     if (!isServer) {
-      // Оптимизация клиентского бандла - code splitting
       config.optimization = {
         ...config.optimization,
         splitChunks: {
           chunks: 'all',
           cacheGroups: {
-            // Выделяем общие зависимости в отдельный чанк
             commons: {
               name: 'commons',
               minChunks: 2,
               priority: -20,
               reuseExistingChunk: true,
             },
-            // Выделяем библиотеки UI в отдельный чанк
             ui: {
               test: /[\\/]node_modules[\\/](react|react-dom|@mui|@headlessui|lucide-react|@radix-ui)[\\/]/,
               name: 'ui-libraries',
               priority: -10,
             },
-            // Выделяем утилиты в отдельный чанк
             utils: {
               test: /[\\/]node_modules[\\/](lodash|date-fns|axios|uuid|papaparse|xlsx)[\\/]/,
               name: 'utils-libraries',
               priority: -15,
             },
-            // Выделяем стили в отдельный чанк
             styles: {
               type: 'css/mini-extract',
               name: 'styles',
@@ -170,16 +115,10 @@ const nextConfig = {
       };
     }
 
-    // --------------------------------------------------------------------
-    // Отключаем source maps в продакшене для уменьшения размера сборки
-    // --------------------------------------------------------------------
     if (!dev) {
       config.devtool = false;
     }
 
-    // --------------------------------------------------------------------
-    // Настройка обработки SVG файлов через @svgr/webpack (опционально)
-    // --------------------------------------------------------------------
     const fileLoaderRule = config.module.rules.find((rule) =>
       rule.test?.test?.('.svg')
     );
@@ -218,34 +157,18 @@ const nextConfig = {
   experimental: {
     // Оптимизация серверных компонентов
     serverComponentsExternalPackages: [
-      'sharp',
-      'canvas',
-      'python',
-      'pandas',
-      'openpyxl',
-      'xlrd',
-      'requests',
+      'sharp', 'canvas', 'python', 'pandas', 'openpyxl', 'xlrd', 'requests',
     ],
     // Улучшенная обработка больших файлов для API routes
     largePageDataBytes: 10 * 1024 * 1024,
     // Оптимизация сборки для указанных пакетов
     optimizePackageImports: [
-      'lucide-react',
-      '@radix-ui/react-*',
-      'date-fns',
-      'lodash',
-      'axios',
-      'uuid',
-      'papaparse',
-      'xlsx',
+      'lucide-react', '@radix-ui/react-*', 'date-fns', 'lodash', 'axios', 'uuid', 'papaparse', 'xlsx',
     ],
     // Турбо-пак для ускорения сборки
     turbo: {
       rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
+        '*.svg': { loaders: ['@svgr/webpack'], as: '*.js' },
       },
       resolveAlias: {
         '@': './src',
@@ -253,8 +176,8 @@ const nextConfig = {
         '@lib': './src/lib',
       },
     },
-    // Оптимизация CSS
-    optimizeCss: true,
+    // ❌ ОТКЛЮЧЕНО: optimizeCss вызывает ошибку critters на Vercel
+    // optimizeCss: true, // <-- ЗАКОММЕНТИРОВАНО
   },
 
   // ========================================================================
@@ -274,35 +197,19 @@ const nextConfig = {
   },
 
   // ========================================================================
-  // REDIRECTS (перенаправления URL)
+  // REDIRECTS
   // ========================================================================
   async redirects() {
     return [
-      {
-        source: '/old-converter',
-        destination: '/smart-hunting',
-        permanent: true,
-      },
-      {
-        source: '/api/v1/convert',
-        destination: '/api/convert',
-        permanent: false,
-      },
-      {
-        source: '/docs',
-        destination: '/smart-hunting',
-        permanent: true,
-      },
-      {
-        source: '/home',
-        destination: '/',
-        permanent: true,
-      },
+      { source: '/old-converter', destination: '/smart-hunting', permanent: true },
+      { source: '/api/v1/convert', destination: '/api/convert', permanent: false },
+      { source: '/docs', destination: '/smart-hunting', permanent: true },
+      { source: '/home', destination: '/', permanent: true },
     ];
   },
 
   // ========================================================================
-  // REWRITES (проксирование запросов)
+  // REWRITES
   // ========================================================================
   async rewrites() {
     return [
@@ -314,15 +221,12 @@ const nextConfig = {
         source: '/api/external-convert/:path*',
         destination: 'https://your-python-server.com/:path*',
       },
-      {
-        source: '/static/:path*',
-        destination: '/:path*',
-      },
+      { source: '/static/:path*', destination: '/:path*' },
     ];
   },
 
   // ========================================================================
-  // SECURITY HEADERS (CORS и защита)
+  // SECURITY HEADERS
   // ========================================================================
   async headers() {
     return [
@@ -354,21 +258,14 @@ const nextConfig = {
       },
       {
         source: '/:path*.(jpg|jpeg|png|gif|svg|webp|avif|ico|woff|woff2|ttf|eot|otf)',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
       {
         source: '/_next/static/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
     ];
   },
 };
 
-// ============================================================================
-// ES MODULE EXPORT (обязательно для .mjs файлов)
-// ============================================================================
 export default nextConfig;
