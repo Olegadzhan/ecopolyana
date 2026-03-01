@@ -119,7 +119,7 @@ export default function SmartHuntingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 text-white">
-      {/* Герой-секция в стиле главной страницы */}
+    
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* Фоновые элементы */}
         <div className="absolute inset-0 overflow-hidden">
@@ -128,20 +128,15 @@ export default function SmartHuntingPage() {
         </div>
 
         <div className="relative z-10 container mx-auto px-4 py-20">
-           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-16"
+          <motion.h1 
+            className="text-5xl md:text-7xl font-black mb-6 bg-gradient-to-r from-green-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent"
+            style={{ textShadow: '0 0 40px rgba(74, 222, 128, 0.6), 0 0 80px rgba(34, 211, 238, 0.4)' }}
+            initial={{ opacity: 0, scale: 0.9 }} 
+            animate={{ opacity: 1, scale: 1 }}
           >
-         <div className="text-center mb-16">
-         <h1 className="text-4xl md:text-5xl font-bold mb-4 text-white">
-        🦌 Умная охота
-          </h1>
-        <p className="text-lg md:text-xl text-gray-400">
-          Конвертер охотничьих данных
-  </p>
-</div>
-          </motion.div>
+            Умная охота<br />
+            <span className="text-white">Конвертер охотничьих данных</span>
+          </motion.h1>
 
           {/* Основная карточка конвертера */}
           <motion.div
