@@ -24,6 +24,9 @@ export default function Navbar() {
           <Link href="/generator" className="text-gray-400 hover:text-white transition-colors text-sm">
             {t('nav.generator')}
           </Link>
+          <Link href="/converter" className="hover:text-emerald-300 transition">
+            🔄 Конвертер
+          </Link>
           <LanguageSwitcher />
         </div>
       </div>
