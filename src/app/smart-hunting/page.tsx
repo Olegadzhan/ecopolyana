@@ -128,18 +128,19 @@ export default function SmartHuntingPage() {
         </div>
 
         <div className="relative z-10 container mx-auto px-4 py-20">
-          {/* Заголовок как на главной */}
-          <motion.div
+           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-16"
           >
-            <h1 className="text-6xl md:text-8xl font-bold mb-6 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 bg-clip-text text-transparent">
-              🦌 Умная охота
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto">
-              Конвертер охотничьих данных с обогащением через DaData
-            </p>
+         <div className="text-center mb-16">
+         <h1 className="text-4xl md:text-5xl font-bold mb-4 text-white">
+        🦌 Умная охота
+          </h1>
+        <p className="text-lg md:text-xl text-gray-400">
+          Конвертер охотничьих данных
+  </p>
+</div>
           </motion.div>
 
           {/* Основная карточка конвертера */}
