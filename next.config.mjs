@@ -2,6 +2,7 @@
 // NEXT.JS CONFIGURATION - PRODUCTION READY
 // Файл: next.config.mjs (ES Module syntax)
 // Проект: Экополяна - Конвертер охотничьих данных
+// Совместимость: Next.js 14.2.5
 // ============================================================================
 
 // ============================================================================
@@ -19,17 +20,15 @@ const nextConfig = {
   // ========================================================================
   // РЕЖИМ ВЫВОДА ДЛЯ VERCEL
   // ========================================================================
-  // 'standalone' уменьшает размер сборки, копируя только необходимые файлы
   output: 'standalone',
 
   // ========================================================================
   // REACT STRICT MODE
   // ========================================================================
-  // Отключаем строгий режим в продакшене для производительности
   reactStrictMode: process.env.NODE_ENV !== 'production',
 
   // ========================================================================
-  // ОПТИМИЗАЦИЯ ИЗОБРАЖЕНИЙ NEXT.JS
+  // ОПТИМИЗАЦИЯ ИЗОБРАЖЕНИЙ NEXT.JS (ТОЛЬКО ВАЛИДНЫЕ СВОЙСТВА ДЛЯ 14.2.5)
   // ========================================================================
   images: {
     // Разрешенные домены для оптимизации изображений Next.js Image
@@ -54,10 +53,14 @@ const nextConfig = {
     // Разрешения для адаптивных изображений
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    // Качественное сжатие (массив значений, не одиночное число!)
-    qualities: [75, 90],
     // Разрешить загрузку изображений с невалидным SSL (только для dev)
     unoptimized: process.env.NODE_ENV === 'development',
+    // Разрешить загрузку SVG (с осторожностью)
+    dangerouslyAllowSVG: false,
+    // CSP для SVG изображений
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    // Тип disposition для скачивания изображений
+    contentDispositionType: 'inline',
   },
 
   // ========================================================================
@@ -105,7 +108,6 @@ const nextConfig = {
       ];
 
       // Игнорируем предупреждения о динамических импортах Python-скриптов
-      // и библиотек, которые не нужны в серверной сборке Next.js
       config.plugins.push(
         new webpack.IgnorePlugin({
           resourceRegExp: /^(python|pyinstaller|pywin32|pandas|openpyxl|xlrd|numpy|requests|packaging)$/,
@@ -195,7 +197,6 @@ const nextConfig = {
   // ========================================================================
   // ENVIRONMENT VARIABLES (доступные на клиенте)
   // ========================================================================
-  // Переменные с префиксом NEXT_PUBLIC_ будут доступны в браузере
   env: {
     NEXT_PUBLIC_APP_NAME: 'Экополяна',
     NEXT_PUBLIC_APP_VERSION: '1.0.0',
@@ -207,18 +208,15 @@ const nextConfig = {
   // ========================================================================
   // URL НАСТРОЙКИ
   // ========================================================================
-  // Не добавляем слэш в конце URL для чистоты маршрутов
   trailingSlash: false,
-  // Включаем gzip сжатие для статики и API ответов
   compress: true,
-  // Убираем заголовок X-Powered-By: Next.js для безопасности
   poweredByHeader: false,
 
   // ========================================================================
   // EXPERIMENTAL FEATURES (использовать с осторожностью)
   // ========================================================================
   experimental: {
-    // Оптимизация серверных компонентов (если используете RSC)
+    // Оптимизация серверных компонентов
     serverComponentsExternalPackages: [
       'sharp',
       'canvas',
@@ -229,7 +227,7 @@ const nextConfig = {
       'requests',
     ],
     // Улучшенная обработка больших файлов для API routes
-    largePageDataBytes: 10 * 1024 * 1024, // 10MB лимит для page data
+    largePageDataBytes: 10 * 1024 * 1024,
     // Оптимизация сборки для указанных пакетов
     optimizePackageImports: [
       'lucide-react',
@@ -241,7 +239,7 @@ const nextConfig = {
       'papaparse',
       'xlsx',
     ],
-    // Включаем турбо-пак для ускорения сборки
+    // Турбо-пак для ускорения сборки
     turbo: {
       rules: {
         '*.svg': {
@@ -263,9 +261,7 @@ const nextConfig = {
   // TYPESCRIPT CONFIGURATION
   // ========================================================================
   typescript: {
-    // Игнорировать ошибки TypeScript при сборке в CI/CD
     ignoreBuildErrors: process.env.CI === 'true' || process.env.VERCEL === '1',
-    // Путь к tsconfig.json
     tsconfigPath: './tsconfig.json',
   },
 
@@ -273,9 +269,7 @@ const nextConfig = {
   // ESLINT CONFIGURATION
   // ========================================================================
   eslint: {
-    // Игнорировать ошибки ESLint при сборке в CI/CD
     ignoreDuringBuilds: process.env.CI === 'true' || process.env.VERCEL === '1',
-    // Директории для проверки линтером
     dirs: ['src/app', 'src/components', 'src/lib', 'src/utils', 'src/hooks'],
   },
 
@@ -284,25 +278,21 @@ const nextConfig = {
   // ========================================================================
   async redirects() {
     return [
-      // Редирект со старой страницы конвертера на новую
       {
         source: '/old-converter',
         destination: '/smart-hunting',
         permanent: true,
       },
-      // Редирект API v1 для обратной совместимости
       {
         source: '/api/v1/convert',
         destination: '/api/convert',
         permanent: false,
       },
-      // Редирект документации
       {
         source: '/docs',
         destination: '/smart-hunting',
         permanent: true,
       },
-      // Редирект корня на главную страницу
       {
         source: '/home',
         destination: '/',
@@ -316,17 +306,14 @@ const nextConfig = {
   // ========================================================================
   async rewrites() {
     return [
-      // Проксирование запросов к Dadata API через наш сервер для CORS
       {
         source: '/api/dadata/:path*',
         destination: 'https://suggestions.dadata.ru/suggestions/api/4_1/rs/:path*',
       },
-      // Проксирование запросов к внешнему Python-конвертеру (если вынесен)
       {
         source: '/api/external-convert/:path*',
         destination: 'https://your-python-server.com/:path*',
       },
-      // Проксирование статических файлов из public
       {
         source: '/static/:path*',
         destination: '/:path*',
@@ -340,7 +327,6 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Заголовки для всех API routes
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
@@ -355,7 +341,6 @@ const nextConfig = {
         ],
       },
       {
-        // Заголовки безопасности для всего приложения
         source: '/:path*',
         headers: [
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
@@ -368,14 +353,12 @@ const nextConfig = {
         ],
       },
       {
-        // Кэширование для статических ассетов
         source: '/:path*.(jpg|jpeg|png|gif|svg|webp|avif|ico|woff|woff2|ttf|eot|otf)',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
       {
-        // Кэширование для CSS и JS бандлов
         source: '/_next/static/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
