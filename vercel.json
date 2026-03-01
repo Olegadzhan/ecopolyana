@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/convert.py": {
-      "runtime": "python3.9",
+      "runtime": "python3.9@1.0.0",
       "memory": 1024,
       "maxDuration": 30
     }
@@ -11,10 +11,5 @@
       "source": "/api/convert",
       "destination": "/api/convert.py"
     }
-  ],
-  "build": {
-    "env": {
-      "PYTHON_VERSION": "3.9"
-    }
-  }
+  ]
 }
