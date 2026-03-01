@@ -99,7 +99,7 @@ export interface DadataAddressData {
 export interface DadataSuggestion {
   value: string;
   unrestricted_value: string;
-   DadataAddressData;
+  data: DadataAddressData;
   type?: string;
 }
 
@@ -209,9 +209,9 @@ function extractPostalCodeFromAddress(address: string): string | null {
 }
 
 // ============================================================================
-// MAIN API CLIENT CLASS
+// MAIN API CLIENT CLASS (без export здесь!)
 // ============================================================================
-export class DadataClient {
+class DadataClient {
   private apiKey: string;
   private baseUrl: string;
   private cleanUrl: string;
@@ -604,7 +604,7 @@ export async function findOktmoByAddress(
 }
 
 // ============================================================================
-// EXPORTS
+// EXPORTS (ЕДИНЫЙ БЛОК - без дублирования!)
 // ============================================================================
 export {
   DadataClient,
