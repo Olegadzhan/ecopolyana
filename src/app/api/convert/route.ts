@@ -59,7 +59,11 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const dadataUrl = `${baseUrl}/api/dadata`;
     
-    let command = `python "${pythonScript}" "${inputPath}" -o "${outputPath}" --mode smart`;
+    // Определяем команду Python в зависимости от ОС
+    const isWindows = process.platform === 'win32';
+    const pythonCommand = isWindows ? 'python' : 'python3';
+    
+    let command = `${pythonCommand} "${pythonScript}" "${inputPath}" -o "${outputPath}" --mode smart`;
     
     if (useDadata) {
       command += ` --use-dadata --dadata-api ${dadataUrl}`;
@@ -140,7 +144,7 @@ export async function POST(request: NextRequest) {
       statusCode = 504;
     } else if (error.message?.includes('ENOENT')) {
       errorMessage = 'Python скрипт не найден. Проверьте наличие файла python-converter/converter_unified.py';
-    } else if (error.message?.includes('python not found')) {
+    } else if (error.message?.includes('python not found') || error.message?.includes('python3 not found')) {
       errorMessage = 'Python не установлен или не добавлен в PATH';
     } else if (error.stderr) {
       errorMessage = `Ошибка Python: ${error.stderr.substring(0, 200)}`;
@@ -167,10 +171,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Настройка максимального размера тела запроса
-export const config = {
-  api: {
-    bodyParser: false,
-    responseLimit: '50mb',
-  },
-};
+// ✅ УДАЛЕН УСТАРЕВШИЙ БЛОК export const config
+// В Next.js 14+ настройки для API роутов задаются по-другому
