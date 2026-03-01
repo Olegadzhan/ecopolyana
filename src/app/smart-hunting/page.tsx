@@ -3,8 +3,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Download, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Database, MapPin, Search, Settings, Info } from 'lucide-react';
-import Image from 'next/image';
+import { Upload, Download, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Database, MapPin, Search, Settings, Info, X } from 'lucide-react';
 
 // ============================================
 // ТИПЫ
@@ -44,8 +43,15 @@ interface FiasAddress {
   longitude?: string;
 }
 
+interface EnrichmentOptions {
+  standardizeAddresses: boolean;
+  addCoordinates: boolean;
+  addRegionCodes: boolean;
+  validateHuntingZones: boolean;
+}
+
 // ============================================
-// КОНВЕРТЕР КОМПОНЕНТ
+// ГЛАВНЫЙ КОМПОНЕНТ
 // ============================================
 export default function SmartHuntingPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -56,7 +62,7 @@ export default function SmartHuntingPage() {
   const [fiasEndpoint, setFiasEndpoint] = useState('https://fias.nalog.ru/api');
   const [useDadata, setUseDadata] = useState(true);
   const [useFias, setUseFias] = useState(false);
-  const [enrichmentOptions, setEnrichmentOptions] = useState({
+  const [enrichmentOptions, setEnrichmentOptions] = useState<EnrichmentOptions>({
     standardizeAddresses: true,
     addCoordinates: true,
     addRegionCodes: true,
@@ -74,7 +80,6 @@ export default function SmartHuntingPage() {
     const uploadedFile = e.target.files?.[0];
     if (!uploadedFile) return;
     
-    // Проверка типа
     const validTypes = [
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -88,7 +93,7 @@ export default function SmartHuntingPage() {
     parseXLSX(uploadedFile);
   }, []);
 
-  // 📊 Парсинг XLSX (упрощённая реализация)
+  // 📊 Парсинг XLSX (упрощённая реализация для демо)
   const parseXLSX = async (file: File) => {
     try {
       // В продакшене используйте библиотеку xlsx или sheetjs
@@ -152,7 +157,7 @@ export default function SmartHuntingPage() {
     }
   };
 
-  // ⚙️ Основная конвертация
+  // ⚙️ Основная конвертация — ✅ ИСПРАВЛЕНА ОБЛАСТЬ ВИДИМОСТИ dadataResult
   const handleConvert = useCallback(async () => {
     if (!file || preview.length === 0) return;
     
@@ -160,16 +165,19 @@ export default function SmartHuntingPage() {
     setResult(null);
     
     try {
-      const enrichedData = [];
+      const enrichedData: any[] = [];
       let enrichedCount = 0;
       let failedCount = 0;
       
       for (const row of preview) {
         let enrichedRow = { ...row };
         
+        // ✅ FIX: Объявляем dadataResult в области видимости цикла
+        let dadataResult: DadataSuggestion | null = null;
+        
         // Обогащение адреса через Dadata
         if (enrichmentOptions.standardizeAddresses && row.location) {
-          const dadataResult = await enrichWithDadata(row.location);
+          dadataResult = await enrichWithDadata(row.location);
           if (dadataResult) {
             enrichedRow.address_standardized = dadataResult.value;
             enrichedRow.address_parts = dadataResult.unparsed_parts;
@@ -177,7 +185,7 @@ export default function SmartHuntingPage() {
           }
         }
         
-        // Добавление координат
+        // Добавление координат — ✅ FIX: dadataResult теперь доступен
         if (enrichmentOptions.addCoordinates) {
           const coords = dadataResult?.geo_lat && dadataResult?.geo_lon 
             ? { lat: parseFloat(dadataResult.geo_lat), lon: parseFloat(dadataResult.geo_lon) }
@@ -226,7 +234,7 @@ export default function SmartHuntingPage() {
     }
   }, [file, preview, dadataKey, useDadata, useFias, enrichmentOptions]);
 
-  // 💾 Скачивание результата
+  // 💾 Скачивание результата JSON
   const downloadJSON = useCallback(() => {
     if (!result?.data) return;
     
@@ -243,7 +251,6 @@ export default function SmartHuntingPage() {
 
   // 📥 Скачивание шаблона
   const downloadTemplate = useCallback(() => {
-    // Создаём пример шаблона в JSON (в продакшене — реальный .xlsx файл)
     const template = [
       { id: 1, location: 'Область, район, населённый пункт', species: 'Вид животного', count: 0, date: 'YYYY-MM-DD' },
       { id: 2, location: 'Ленинградская обл., Приозерский р-н', species: 'Лось', count: 12, date: '2024-03-15' },
@@ -267,18 +274,27 @@ export default function SmartHuntingPage() {
     <main className="min-h-screen bg-gray-950 text-gray-100">
       {/* Фоновые эффекты */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <motion.div className="absolute -top-40 -right-40 w-80 h-80 bg-green-500/10 rounded-full blur-3xl"
-          animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 10, repeat: Infinity }} />
-        <motion.div className="absolute top-1/2 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl"
-          animate={{ scale: [1.1, 1, 1.1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 10, repeat: Infinity, delay: 2 }} />
+        <motion.div 
+          className="absolute -top-40 -right-40 w-80 h-80 bg-green-500/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }}
+          transition={{ duration: 10, repeat: Infinity }}
+        />
+        <motion.div 
+          className="absolute top-1/2 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl"
+          animate={{ scale: [1.1, 1, 1.1], opacity: [0.1, 0.2, 0.1] }}
+          transition={{ duration: 10, repeat: Infinity, delay: 2 }}
+        />
       </div>
 
       <div className="pt-20 pb-12 px-4">
         <div className="max-w-7xl mx-auto">
           
           {/* Заголовок */}
-          <motion.div className="text-center mb-10"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div 
+            className="text-center mb-10"
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }}
+          >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 text-green-400 text-sm mb-4">
               <span>🦌</span> Умная охота
             </div>
@@ -291,9 +307,12 @@ export default function SmartHuntingPage() {
           </motion.div>
 
           {/* Панель настроек API */}
-          <motion.div className="glass-panel p-6 rounded-2xl mb-6 border border-white/10"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            
+          <motion.div 
+            className="glass-panel p-6 rounded-2xl mb-6 border border-white/10"
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: 0.1 }}
+          >
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
               <Settings size={20} className="text-emerald-400" />
               Настройки интеграций
@@ -310,8 +329,12 @@ export default function SmartHuntingPage() {
                       <p className="text-xs text-gray-500">Стандартизация адресов</p>
                     </div>
                   </div>
-                  <input type="checkbox" checked={useDadata} onChange={(e) => setUseDadata(e.target.checked)} 
-                    className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-cyan-500" />
+                  <input 
+                    type="checkbox" 
+                    checked={useDadata} 
+                    onChange={(e) => setUseDadata(e.target.checked)} 
+                    className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-cyan-500" 
+                  />
                 </label>
                 
                 {useDadata && (
@@ -338,8 +361,12 @@ export default function SmartHuntingPage() {
                       <p className="text-xs text-gray-500">Верификация адресов</p>
                     </div>
                   </div>
-                  <input type="checkbox" checked={useFias} onChange={(e) => setUseFias(e.target.checked)} 
-                    className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-500" />
+                  <input 
+                    type="checkbox" 
+                    checked={useFias} 
+                    onChange={(e) => setUseFias(e.target.checked)} 
+                    className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-500" 
+                  />
                 </label>
                 
                 {useFias && (
@@ -385,9 +412,12 @@ export default function SmartHuntingPage() {
           </motion.div>
 
           {/* Загрузка файла */}
-          <motion.div className="glass-panel p-8 rounded-2xl mb-6 border border-white/10 text-center"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            
+          <motion.div 
+            className="glass-panel p-8 rounded-2xl mb-6 border border-white/10 text-center"
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: 0.2 }}
+          >
             <input
               ref={fileInputRef}
               type="file"
@@ -411,7 +441,9 @@ export default function SmartHuntingPage() {
                 <div className="flex items-center justify-center gap-3 mb-4">
                   <FileSpreadsheet size={24} className="text-green-400" />
                   <span className="font-medium">{file.name}</span>
-                  <button onClick={() => { setFile(null); setPreview([]); }} className="text-red-400 hover:text-red-300">✕</button>
+                  <button onClick={() => { setFile(null); setPreview([]); }} className="text-red-400 hover:text-red-300">
+                    <X size={18} />
+                  </button>
                 </div>
                 <p className="text-sm text-gray-400 mb-4">{preview.length} строк для обработки</p>
                 <button 
@@ -420,7 +452,9 @@ export default function SmartHuntingPage() {
                   className="btn-primary px-8 py-3 disabled:opacity-50"
                 >
                   {isProcessing ? (
-                    <span className="flex items-center gap-2"><Loader2 size={18} className="animate-spin" /> Обработка...</span>
+                    <span className="flex items-center gap-2">
+                      <Loader2 size={18} className="animate-spin" /> Обработка...
+                    </span>
                   ) : (
                     'Конвертировать в JSON'
                   )}
@@ -431,22 +465,25 @@ export default function SmartHuntingPage() {
 
           {/* Превью данных */}
           {preview.length > 0 && !result && (
-            <motion.div className="glass-panel p-6 rounded-2xl mb-6 border border-white/10"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <motion.div 
+              className="glass-panel p-6 rounded-2xl mb-6 border border-white/10"
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
+            >
               <h3 className="font-bold text-lg mb-4">Превью данных</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-gray-400 border-b border-white/10">
-                      {Object.keys(preview[0]).map((key) => (
+                      {Object.keys(preview[0] || {}).map((key) => (
                         <th key={key} className="pb-3 pr-4 font-medium">{key}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.slice(0, 5).map((row, i) => (
+                    {preview.slice(0, 5).map((row: any, i: number) => (
                       <tr key={i} className="border-b border-white/5 last:border-0">
-                        {Object.values(row).map((val: any, j) => (
+                        {Object.values(row).map((val: any, j: number) => (
                           <td key={j} className="py-3 pr-4 text-gray-300">{String(val)}</td>
                         ))}
                       </tr>
@@ -462,9 +499,11 @@ export default function SmartHuntingPage() {
 
           {/* Результат */}
           {result && (
-            <motion.div className="glass-panel p-6 rounded-2xl mb-6 border border-white/10"
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              
+            <motion.div 
+              className="glass-panel p-6 rounded-2xl mb-6 border border-white/10"
+              initial={{ opacity: 0, y: 20 }} 
+              animate={{ opacity: 1, y: 0 }}
+            >
               {result.success ? (
                 <>
                   <div className="flex items-center justify-between mb-4">
@@ -492,7 +531,9 @@ export default function SmartHuntingPage() {
                   </div>
                   
                   <details className="text-sm">
-                    <summary className="cursor-pointer text-gray-300 hover:text-white mb-3">Просмотр результата (первые 3 записи)</summary>
+                    <summary className="cursor-pointer text-gray-300 hover:text-white mb-3">
+                      Просмотр результата (первые 3 записи)
+                    </summary>
                     <pre className="bg-black/50 p-4 rounded-lg overflow-x-auto text-xs text-gray-300 max-h-64">
                       {JSON.stringify(result.data?.slice(0, 3), null, 2)}
                     </pre>
@@ -502,7 +543,7 @@ export default function SmartHuntingPage() {
                 <div className="text-center py-8">
                   <AlertCircle size={40} className="text-red-400 mx-auto mb-4" />
                   <p className="text-red-400 font-medium mb-2">Ошибка конвертации</p>
-                  {result.errors?.map((err, i) => (
+                  {result.errors?.map((err: string, i: number) => (
                     <p key={i} className="text-sm text-gray-400">{err}</p>
                   ))}
                 </div>
@@ -511,8 +552,12 @@ export default function SmartHuntingPage() {
           )}
 
           {/* Скачать шаблон */}
-          <motion.div className="text-center"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
+          <motion.div 
+            className="text-center"
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            transition={{ delay: 0.4 }}
+          >
             <button onClick={downloadTemplate} className="btn-secondary px-6 py-3 flex items-center gap-2 mx-auto">
               <Download size={18} />
               Скачать шаблон файла
@@ -521,8 +566,12 @@ export default function SmartHuntingPage() {
           </motion.div>
 
           {/* Документация API */}
-          <motion.div className="mt-12 glass-panel p-6 rounded-2xl border border-white/10"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+          <motion.div 
+            className="mt-12 glass-panel p-6 rounded-2xl border border-white/10"
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            transition={{ delay: 0.5 }}
+          >
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
               <Info size={20} className="text-emerald-400" />
               Дополнительные возможности API
