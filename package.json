@@ -27,7 +27,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "prepare": "husky install",
     "vercel-build": "next build",
-    "analyze": "ANALYZE=true next build"
+    "analyze": "ANALYZE=true next build",
+    "postinstall": "npm install critters --save-dev || true"
   },
   "dependencies": {
     "@next/bundle-analyzer": "^14.2.5",
@@ -38,6 +39,7 @@
     "autoprefixer": "^10.4.19",
     "axios": "^1.7.2",
     "clsx": "^2.1.1",
+    "critters": "^0.0.20",
     "date-fns": "^3.6.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.5",
@@ -75,16 +77,8 @@
     "npm": ">=9.0.0"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "src/**/*.{js,jsx,json,md}": [
-      "prettier --write"
-    ]
+    "src/**/*.{ts,tsx}": ["eslint --fix", "prettier --write"],
+    "src/**/*.{js,jsx,json,md}": ["prettier --write"]
   },
-  "browserslist": [
-    "defaults",
-    "not IE 11"
-  ]
+  "browserslist": ["defaults", "not IE 11"]
 }
