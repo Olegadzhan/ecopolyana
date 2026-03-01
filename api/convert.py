@@ -1,11 +1,12 @@
+import setuptools  # Явный импорт для избежания ошибки
 from http.server import BaseHTTPRequestHandler
 import json
 import tempfile
 import os
 import sys
 from pathlib import Path
-import subprocess
 import shutil
+import cgi
 
 # Добавляем путь к вашему конвертеру
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'python-converter'))
@@ -13,37 +14,34 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'python-converter'
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            # Получаем длину контента
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            
-            # Парсим multipart/form-data (упрощенно)
-            # В реальности лучше использовать библиотеку python-multipart
-            import cgi
+            # Парсим multipart/form-data
             form = cgi.FieldStorage(
-                fp=tempfile.NamedTemporaryFile(),
+                fp=self.rfile,
+                headers=self.headers,
                 environ={
                     'REQUEST_METHOD': 'POST',
                     'CONTENT_TYPE': self.headers.get('Content-Type', ''),
                 }
             )
             
-            # Получаем файл и параметры
+            # Получаем файл
             file_item = form['file']
+            
+            # Создаем временный файл
+            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_item.filename).suffix) as tmp:
+                tmp.write(file_item.file.read())
+                input_path = tmp.name
+            
+            # Получаем параметры
             use_dadata = form.getvalue('useDadata') == 'true'
             include_postal = form.getvalue('includePostal') == 'true'
             include_oktmo = form.getvalue('includeOktmo') == 'true'
             region_code = form.getvalue('regionCode', '')
             
-            # Сохраняем файл временно
-            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_item.filename).suffix) as tmp:
-                tmp.write(file_item.file.read())
-                input_path = tmp.name
-            
             # Создаем временную папку для вывода
             output_dir = tempfile.mkdtemp()
             
-            # Запускаем ваш конвертер
+            # Импортируем ваш конвертер
             from converter_unified import ExcelToJsonConverter
             
             converter = ExcelToJsonConverter()
@@ -60,16 +58,15 @@ class handler(BaseHTTPRequestHandler):
             )
             
             # Читаем результаты
-            hunters_path = Path(output_dir) / 'hunters.json'
-            tickets_path = Path(output_dir) / 'huntingtickets.json'
-            
             hunters = []
             tickets = []
             
+            hunters_path = Path(output_dir) / 'hunters.json'
             if hunters_path.exists():
                 with open(hunters_path, 'r', encoding='utf-8') as f:
                     hunters = json.load(f)
             
+            tickets_path = Path(output_dir) / 'huntingtickets.json'
             if tickets_path.exists():
                 with open(tickets_path, 'r', encoding='utf-8') as f:
                     tickets = json.load(f)
@@ -97,7 +94,7 @@ class handler(BaseHTTPRequestHandler):
                 }
             }
             
-            self.wfile.write(json.dumps(response).encode('utf-8'))
+            self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
             
         except Exception as e:
             self.send_response(500)
@@ -106,4 +103,4 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({
                 'success': False,
                 'error': str(e)
-            }).encode('utf-8'))
+            }, ensure_ascii=False).encode('utf-8'))
