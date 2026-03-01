@@ -79,7 +79,7 @@ export default function SmartHuntingPage() {
     formData.append('regionCode', regionCode);
 
     try {
-      const response = await fetch('/api/convert.py', {
+      const response = await fetch('/api/convert', {
         method: 'POST',
         body: formData,
       });
