@@ -3,7 +3,8 @@
 
 import { createContext, useContext, useState, ReactNode } from 'react';
 
-type Language = 'ru' | 'en';
+// ✅ FIX: Экспортируем тип Language
+export type Language = 'ru' | 'en';
 
 interface LanguageContextType {
   language: Language;
@@ -51,6 +52,8 @@ const translations: Record<Language, Record<string, string>> = {
     'generator.tipsWords': 'futuristic, 8k, dramatic lighting',
     'generator.tipsLighting': 'dramatic lighting, neon, ethereal',
     'generator.tipsHunting': 'night vision, thermal imaging, drone view',
+    'lang.ru': 'Русский',
+    'lang.en': 'English',
   },
   en: {
     'generator.subtitle': 'AI Generator',
@@ -89,6 +92,8 @@ const translations: Record<Language, Record<string, string>> = {
     'generator.tipsWords': 'futuristic, 8k, dramatic lighting',
     'generator.tipsLighting': 'dramatic lighting, neon, ethereal',
     'generator.tipsHunting': 'night vision, thermal imaging, drone view',
+    'lang.ru': 'Russian',
+    'lang.en': 'English',
   },
 };
 
