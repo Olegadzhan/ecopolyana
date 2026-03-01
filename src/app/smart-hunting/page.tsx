@@ -123,7 +123,7 @@ export default function SmartHuntingPage() {
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* Фоновые элементы */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute top-20 items-center w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
         </div>
 
@@ -134,10 +134,16 @@ export default function SmartHuntingPage() {
             initial={{ opacity: 0, scale: 0.9 }} 
             animate={{ opacity: 1, scale: 1 }}
           >
-            Умная охота<br />
-            <span className="text-white">Конвертер охотничьих данных</span>
+            Умная охота
           </motion.h1>
-
+          <motion.p 
+            className="text-lg md:text-xl text-gray-400 mb-8 max-w-2xl mx-auto leading-relaxed"
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            transition={{ delay: 0.3 }}
+          >
+          Конвертер охотничьих данных
+          </motion.p>
           {/* Основная карточка конвертера */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
