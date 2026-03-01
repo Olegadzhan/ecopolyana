@@ -1,3 +1,4 @@
+// src/context/LanguageContext.tsx
 'use client';
 
 import { createContext, useContext, useState, ReactNode } from 'react';
@@ -12,7 +13,6 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-// Простая система переводов (можно расширить)
 const translations: Record<Language, Record<string, string>> = {
   ru: {
     'generator.subtitle': 'AI Генератор',
