@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 УНИФИЦИРОВАННЫЙ КОНВЕРТЕР EXCEL/CSV В JSON
-Версия: 7.1.1 (Исправлен формат телефона: +7XXXXXXXXXX)
+Версия: 7.2.0 (Добавлена поддержка DaData API через Next.js прокси)
 """
 # === ИСПРАВЛЕНИЕ ДЛЯ PYINSTALLER + --windowed ===
 if __name__ == '__main__':
@@ -147,6 +147,12 @@ def main():
     parser.add_argument('--postal', action='store_true', help='Включить почтовые индексы в выходные данные')
     parser.add_argument('--oktmo', action='store_true', help='Включить коды ОКТМО в выходные данные')
     parser.add_argument('--region', type=int, help='Код региона для фильтрации данных')
+    
+    # 👇 НОВЫЕ АРГУМЕНТЫ ДЛЯ DADATA
+    parser.add_argument('--dadata-api', help='URL для DaData API прокси (например, http://localhost:3000/api/dadata)', 
+                       default='http://localhost:3000/api/dadata')
+    parser.add_argument('--use-dadata', action='store_true', help='Использовать DaData для обогащения почтовых индексов')
+    parser.add_argument('--dadata-timeout', type=int, default=5, help='Таймаут для запросов к DaData в секундах')
 
     # Пытаемся получить аргументы
     try:
@@ -213,6 +219,11 @@ class ExcelConverterGUI:
         self.base_padding = 10  # Базовый отступ
         self.min_window_width = 1200
         self.min_window_height = 800
+        
+        # 👇 НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ DADATA
+        self.use_dadata = False
+        self.dadata_api_url = "http://localhost:3000/api/dadata"
+        self.dadata_timeout = 5
 
     def create_gui(self):
         """Создание графического интерфейса с масштабируемым дизайном"""
@@ -332,12 +343,40 @@ class ExcelConverterGUI:
                                    foreground="#4CAF50")
         self.mode_label.grid(row=0, column=1, sticky=tk.W, pady=4, padx=(10, 0))
 
+        # 👇 НОВЫЙ ЧЕКБОКС ДЛЯ DADATA
+        ttk.Label(settings_frame, text="DaData API:", font=('Arial', self.base_font_size)).grid(
+            row=1, column=0, sticky=tk.W, pady=4)
+        
+        dadata_frame = ttk.Frame(settings_frame)
+        dadata_frame.grid(row=1, column=1, columnspan=3, sticky=tk.W, pady=4, padx=(10, 0))
+        
+        self.dadata_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(dadata_frame, text="Использовать DaData для поиска индексов",
+                        variable=self.dadata_var, style='TCheckbutton',
+                        command=self.toggle_dadata_settings).pack(side=tk.LEFT)
+        
+        # 👇 ПОЛЕ ДЛЯ URL DADATA API
+        ttk.Label(settings_frame, text="URL DaData API:", font=('Arial', self.base_font_size)).grid(
+            row=2, column=0, sticky=tk.W, pady=4)
+        self.dadata_url_entry = ttk.Entry(settings_frame, font=('Arial', self.base_font_size))
+        self.dadata_url_entry.grid(row=2, column=1, columnspan=2, sticky=tk.W+tk.E, pady=4, padx=(10, 0))
+        self.dadata_url_entry.insert(0, "http://localhost:3000/api/dadata")
+        self.dadata_url_entry.config(state='disabled')
+
+        # 👇 ПОЛЕ ДЛЯ ТАЙМАУТА
+        ttk.Label(settings_frame, text="Таймаут (сек):", font=('Arial', self.base_font_size)).grid(
+            row=3, column=0, sticky=tk.W, pady=4)
+        self.dadata_timeout_entry = ttk.Entry(settings_frame, font=('Arial', self.base_font_size), width=10)
+        self.dadata_timeout_entry.grid(row=3, column=1, sticky=tk.W, pady=4, padx=(10, 0))
+        self.dadata_timeout_entry.insert(0, "5")
+        self.dadata_timeout_entry.config(state='disabled')
+
         # Опции чекбоксов
         options_frame = ttk.Frame(settings_frame)
-        options_frame.grid(row=1, column=0, columnspan=4, pady=10, sticky=tk.W)
+        options_frame.grid(row=4, column=0, columnspan=4, pady=10, sticky=tk.W)
 
         self.postal_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(options_frame, text="Почтовые индексы",
+        ttk.Checkbutton(options_frame, text="Почтовые индексы (ОКТМО)",
                         variable=self.postal_var, style='TCheckbutton').pack(side=tk.LEFT, padx=(0, 20))
 
         self.oktmo_var = tk.BooleanVar(value=False)
@@ -350,11 +389,11 @@ class ExcelConverterGUI:
 
         # Выбор региона - сортировка по номеру региона
         ttk.Label(settings_frame, text="Регион РФ:", font=('Arial', self.base_font_size)).grid(
-            row=2, column=0, sticky=tk.W, pady=4)
+            row=5, column=0, sticky=tk.W, pady=4)
         self.region_var = tk.StringVar()
         self.region_combo = ttk.Combobox(settings_frame, textvariable=self.region_var,
                                         font=('Arial', self.base_font_size), state="readonly")
-        self.region_combo.grid(row=2, column=1, columnspan=2, sticky=tk.W+tk.E, pady=4, padx=(10, 0))
+        self.region_combo.grid(row=5, column=1, columnspan=2, sticky=tk.W+tk.E, pady=4, padx=(10, 0))
         
         # Сортируем регионы по номеру
         sorted_regions = [""] + [f"{code} - {name}" for code, name in sorted(RUSSIAN_REGIONS.items())]
@@ -371,6 +410,11 @@ class ExcelConverterGUI:
                                  width=20).pack(side=tk.LEFT, padx=(0, 10))
         self.create_styled_button(check_frame, "Проверить конвертацию", self.verify_conversion,
                                  width=20).pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 👇 КНОПКА ПРОВЕРКИ DADATA
+        self.check_dadata_btn = self.create_styled_button(check_frame, "Проверить DaData", self.check_dadata_connection,
+                                 width=20, state=tk.DISABLED)
+        self.check_dadata_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         # Прогресс бар
         progress_frame = tk.LabelFrame(self.scrollable_frame, text="Прогресс конвертации",
@@ -473,6 +517,55 @@ class ExcelConverterGUI:
         # Первоначальное обновление макета
         self.update_layout()
 
+    def toggle_dadata_settings(self):
+        """Включение/отключение настроек DaData"""
+        if self.dadata_var.get():
+            self.dadata_url_entry.config(state='normal')
+            self.dadata_timeout_entry.config(state='normal')
+            self.check_dadata_btn.config(state=tk.NORMAL)
+        else:
+            self.dadata_url_entry.config(state='disabled')
+            self.dadata_timeout_entry.config(state='disabled')
+            self.check_dadata_btn.config(state=tk.DISABLED)
+
+    def check_dadata_connection(self):
+        """Проверка подключения к DaData API"""
+        dadata_url = self.dadata_url_entry.get().strip()
+        if not dadata_url:
+            messagebox.showwarning("Предупреждение", "Укажите URL DaData API")
+            return
+
+        try:
+            self.log_message(f"🔍 Проверка подключения к DaData API: {dadata_url}", "INFO")
+            
+            # Пробуем отправить тестовый запрос
+            test_address = "Москва, ул. Тверская, д. 1"
+            response = requests.post(
+                dadata_url,
+                json={"query": test_address, "count": 1},
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                suggestions = data.get('suggestions', [])
+                if suggestions:
+                    postal = suggestions[0]['data'].get('postal_code')
+                    self.log_message(f"✅ DaData API работает! Найден индекс: {postal}", "SUCCESS")
+                    messagebox.showinfo("Успех", f"✅ DaData API работает!\nНайден индекс: {postal}")
+                else:
+                    self.log_message("⚠️ DaData API ответил, но не нашел подсказок", "WARNING")
+            else:
+                self.log_message(f"❌ Ошибка DaData API: {response.status_code}", "ERROR")
+                messagebox.showerror("Ошибка", f"Код ответа: {response.status_code}")
+                
+        except requests.exceptions.ConnectionError:
+            self.log_message("❌ Не удалось подключиться к DaData API", "ERROR")
+            messagebox.showerror("Ошибка", "Не удалось подключиться к серверу")
+        except Exception as e:
+            self.log_message(f"❌ Ошибка: {str(e)}", "ERROR")
+            messagebox.showerror("Ошибка", str(e))
+
     def on_window_resize(self, event=None):
         """Обработчик изменения размера окна"""
         if event and event.widget == self.root:
@@ -499,7 +592,8 @@ class ExcelConverterGUI:
     def update_layout(self):
         """Обновление макета с учетом масштабирования"""
         # Обновляем ширину виджетов ввода
-        for entry_widget in [self.excel_entry, self.output_entry, self.oktmo_entry, self.nationality_entry]:
+        for entry_widget in [self.excel_entry, self.output_entry, self.oktmo_entry, 
+                            self.nationality_entry, self.dadata_url_entry]:
             if entry_widget:
                 entry_widget.config(width=int(70 * self.scale_factor))
         
@@ -554,12 +648,13 @@ class ExcelConverterGUI:
 
     def show_about(self):
         """Показать подробную информацию о программе"""
-        about_text = """📊 КОНВЕРТЕР EXCEL/CSV В JSON - ВЕРСИЯ 7.1.1
+        about_text = """📊 КОНВЕРТЕР EXCEL/CSV В JSON - ВЕРСИЯ 7.2.0
 
-🎯 НАЗНАЧЕНИЕ ПРОГРАММЫ:
-Конвертация данных из Excel/CSV в два JSON файла:
-1. hunters.json - полная информация об охотниках
-2. huntingtickets.json - информация о выданных билетах
+🎯 НОВОЕ В ВЕРСИИ:
+• Интеграция с DaData API для автоматического поиска почтовых индексов
+• Поддержка прокси-сервера Next.js для DaData
+• Настраиваемый таймаут запросов
+• Проверка подключения к DaData
 
 📋 ОСНОВНЫЕ ВОЗМОЖНОСТИ:
 
@@ -572,7 +667,7 @@ class ExcelConverterGUI:
 ⚙️ НАСТРОЙКИ КОНВЕРТАЦИИ:
 • Режим работы: Умный
 • Фильтрация по регионам РФ
-• Автоматическое обогащение данных
+• Автоматическое обогащение данных из DaData
 • Создание детальных отчетов
 
 🔍 ПРОВЕРКИ И ВАЛИДАЦИЯ:
@@ -584,7 +679,7 @@ class ExcelConverterGUI:
 🔄 ПРОЦЕСС КОНВЕРТАЦИИ:
 1. Выбор исходного файла
 2. Загрузка справочников (опционально)
-3. Настройка параметров
+3. Настройка параметров и DaData
 4. Проверка данных
 5. Конвертация с прогресс-баром
 6. Сохранение результатов
@@ -598,25 +693,42 @@ class ExcelConverterGUI:
 🔧 ТЕХНИЧЕСКИЕ ХАРАКТЕРИСТИКИ:
 • Поддержка Excel (xlsx, xls) и CSV
 • Автоматическое определение структуры
-• Обогащение данных из справочников
+• Обогащение данных из DaData и справочников
 • Логирование операций
 • Современный масштабируемый интерфейс
 
 📞 ПОДДЕРЖКА:
-Версия: 7.1.1 | © 2024 Все права защищены
+Версия: 7.2.0 | © 2024 Все права защищены
 Для технической поддержки обратитесь к разработчику"""
 
         self._show_compact_window("📋 О программе", about_text)
 
     def show_instruction(self):
         """Показать инструкцию"""
-        instruction_text = """📘 ИНСТРУКЦИЯ ПО ИСПОЛЬЗОВАНИЮ ВЕРСИИ 7.1.1
+        instruction_text = """📘 ИНСТРУКЦИЯ ПО ИСПОЛЬЗОВАНИЮ ВЕРСИИ 7.2.0
 
 🚀 БЫСТРЫЙ СТАРТ:
 1. Нажмите 'Выбрать...' для выбора Excel/CSV файла
 2. При необходимости загрузите справочники
-3. Настройте параметры конвертации
-4. Нажмите 'Начать конвертацию'
+3. Включите DaData и укажите URL API (если нужно)
+4. Настройте параметры конвертации
+5. Нажмите 'Начать конвертацию'
+
+🌐 НАСТРОЙКА DADATA:
+
+1. ЧТО ТАКОЕ DADATA?
+   • Сервис для автоматического поиска почтовых индексов по адресу
+   • Используется для обогащения данных
+
+2. КАК НАСТРОИТЬ:
+   • Включите чекбокс "Использовать DaData"
+   • URL по умолчанию: http://localhost:3000/api/dadata (для Next.js прокси)
+   • Настройте таймаут (рекомендуется 3-5 секунд)
+   • Нажмите "Проверить DaData" для тестирования подключения
+
+3. ТРЕБОВАНИЯ:
+   • Должен быть запущен Next.js сервер с прокси
+   • В .env.local должен быть указан DADATA_API_KEY
 
 📁 РАБОТА С ФАЙЛАМИ:
 
@@ -672,7 +784,7 @@ class ExcelConverterGUI:
 
 2. ОБРАБОТКА:
    • Валидация каждой строки
-   • Обогащение данных из справочников
+   • Обогащение данных из справочников и DaData
    • Форматирование по эталону JSON
 
 3. СОХРАНЕНИЕ:
@@ -697,17 +809,17 @@ class ExcelConverterGUI:
 
 1. ПУСТЫЕ СТРОКИ:
    • Строки без обязательных полей пропускаются
-   • После двух пустых строк обработка останавливается
+   • После двух пустых строк подряд обработка останавливается
 
 2. ОБРАБОТКА ОШИБОК:
    • Все ошибки записываются в лог
    • Создается детальный отчет
    • Программа продолжает работу при некритических ошибках
 
-3. МАСШТАБИРУЕМОСТЬ:
-   • Интерфейс адаптируется под размер окна
-   • Все элементы правильно масштабируются
-   • Поддержка разных разрешений экрана
+3. DADATA:
+   • Для работы требуется запущенный Next.js сервер
+   • Ключ API должен быть в .env.local
+   • Рекомендуется тестировать подключение перед конвертацией
 
 🆘 ПОЛУЧЕНИЕ ПОМОЩИ:
 • Нажмите 'О программе' для подробной информации
@@ -1252,6 +1364,14 @@ class ExcelConverterGUI:
         self.args.split = None
         self.args.postal = self.postal_var.get()
         self.args.oktmo = self.oktmo_var.get()
+        
+        # 👇 НОВЫЕ ПАРАМЕТРЫ DADATA
+        self.args.use_dadata = self.dadata_var.get()
+        self.args.dadata_api = self.dadata_url_entry.get().strip()
+        try:
+            self.args.dadata_timeout = int(self.dadata_timeout_entry.get().strip())
+        except:
+            self.args.dadata_timeout = 5
 
         # Получаем выбранный регион
         region_selection = self.region_var.get()
@@ -1350,7 +1470,11 @@ class ExcelConverterGUI:
                 oktmo_csv_path=oktmo_path,
                 nationality_file=nationality_path,
                 gui_callback=self.log_queue,
-                selected_region=self.selected_region
+                selected_region=self.selected_region,
+                # 👇 НОВЫЕ ПАРАМЕТРЫ DADATA
+                use_dadata=getattr(self.args, 'use_dadata', False),
+                dadata_api_url=getattr(self.args, 'dadata_api', 'http://localhost:3000/api/dadata'),
+                dadata_timeout=getattr(self.args, 'dadata_timeout', 5)
             )
 
             if result.get('success'):
@@ -1358,6 +1482,8 @@ class ExcelConverterGUI:
                 self.log_queue.put((f"📁 Выходная папка: {result['output_folder']}", "INFO"))
                 if result.get('report_file'):
                     self.log_queue.put((f"📊 Отчет создан: {result['report_file']}", "INFO"))
+                if result.get('dadata_used'):
+                    self.log_queue.put((f"📍 DaData использован для {result.get('dadata_enriched', 0)} адресов", "INFO"))
 
                 # Сохраняем обогащенные данные
                 self.enriched_data = result.get('enriched_data')
@@ -1886,11 +2012,23 @@ class NationalityManager:
 # ============================================================================
 class AddressEnricher:
     """Класс для обогащения адресных данных"""
-    def __init__(self, oktmo_manager: OktmoManager, nationality_manager: NationalityManager = None, logger=None):
+    def __init__(self, oktmo_manager: OktmoManager, nationality_manager: NationalityManager = None, logger=None,
+                 dadata_api_url: str = None, use_dadata: bool = False, dadata_timeout: int = 5):
         self.oktmo_manager = oktmo_manager
         self.nationality_manager = nationality_manager
         self.logger = logger
         self.cache = {}
+        
+        # 👇 НОВЫЕ ПАРАМЕТРЫ DADATA
+        self.dadata_api_url = dadata_api_url
+        self.use_dadata = use_dadata
+        self.dadata_timeout = dadata_timeout
+        self.dadata_stats = {
+            'total_requests': 0,
+            'successful': 0,
+            'failed': 0,
+            'cached': 0
+        }
 
     def print_stats(self):
         """Вывод статистики по справочникам"""
@@ -1906,15 +2044,25 @@ class AddressEnricher:
                 self.logger.info(f"Справочник национальностей: {len(self.nationality_manager.nationality_dict)} записей")
             else:
                 self.logger.info("Справочник национальностей: НЕ ЗАГРУЖЕН")
+            
+            # 👇 Статистика DaData
+            if self.use_dadata:
+                self.logger.info(f"DaData API: ВКЛЮЧЕН (URL: {self.dadata_api_url})")
+                self.logger.info(f"DaData статистика: всего {self.dadata_stats['total_requests']}, "
+                               f"успешно {self.dadata_stats['successful']}, "
+                               f"из кэша {self.dadata_stats['cached']}, "
+                               f"ошибок {self.dadata_stats['failed']}")
+            else:
+                self.logger.info("DaData API: ВЫКЛЮЧЕН")
 
     def enrich_postal_code(self, address: str, current_code: Optional[str] = None) -> Optional[str]:
-        """Обогащение почтового индекса на основе ОКТМО"""
-        if not self.oktmo_manager.has_postal_data():
-            if self.logger:
-                self.logger.warning("Попытка поиска индекса без справочника ОКТМО")
+        """Обогащение почтового индекса на основе ОКТМО или DaData"""
+        if not address:
             return current_code
 
         address_str = str(address).strip()
+        
+        # Сначала проверяем, есть ли уже индекс в адресе
         postal_match = re.search(r'\b\d{6}\b', address_str)
         if postal_match:
             found_code = postal_match.group(0)
@@ -1922,7 +2070,67 @@ class AddressEnricher:
                 self.logger.info(f"Найден индекс в адресе: {found_code}")
             return found_code
 
+        # Если включен DaData, пробуем получить индекс через API
+        if self.use_dadata and self.dadata_api_url:
+            postal_code = self._get_postal_from_dadata(address_str)
+            if postal_code:
+                return postal_code
+
         return current_code
+
+    def _get_postal_from_dadata(self, address: str) -> Optional[str]:
+        """Получение почтового индекса через DaData API"""
+        # Проверяем кэш
+        cache_key = address[:100]  # Ограничиваем длину ключа
+        if cache_key in self.cache:
+            self.dadata_stats['cached'] += 1
+            return self.cache[cache_key]
+
+        self.dadata_stats['total_requests'] += 1
+
+        try:
+            # Ограничиваем длину запроса для экономии
+            query = address[:150]
+            
+            response = requests.post(
+                self.dadata_api_url,
+                json={"query": query, "count": 1},
+                timeout=self.dadata_timeout,
+                headers={'Content-Type': 'application/json'}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                suggestions = data.get('suggestions', [])
+                
+                if suggestions:
+                    postal_code = suggestions[0]['data'].get('postal_code')
+                    if postal_code:
+                        self.dadata_stats['successful'] += 1
+                        # Сохраняем в кэш
+                        self.cache[cache_key] = postal_code
+                        if self.logger:
+                            self.logger.info(f"DaData нашел индекс {postal_code} для адреса: {address[:50]}...")
+                        return postal_code
+            else:
+                self.dadata_stats['failed'] += 1
+                if self.logger:
+                    self.logger.warning(f"DaData API вернул код {response.status_code}")
+                    
+        except requests.exceptions.Timeout:
+            self.dadata_stats['failed'] += 1
+            if self.logger:
+                self.logger.warning(f"Таймаут при обращении к DaData для адреса: {address[:50]}...")
+        except requests.exceptions.ConnectionError:
+            self.dadata_stats['failed'] += 1
+            if self.logger:
+                self.logger.warning(f"Ошибка подключения к DaData API: {self.dadata_api_url}")
+        except Exception as e:
+            self.dadata_stats['failed'] += 1
+            if self.logger:
+                self.logger.warning(f"Ошибка при обращении к DaData: {e}")
+
+        return None
 
     def enrich_oktmo_from_postal(self, postal_code: str) -> Optional[str]:
         """Поиск кода ОКТМО по почтовому индексу"""
@@ -2623,6 +2831,22 @@ class DataProcessor:
                             nationality_name
                         )
 
+        # 👇 Обогащение почтового индекса через DaData (если включено)
+        if self.address_enricher and self.enrich_postal and self.address_enricher.use_dadata:
+            address = result.get('address') or result.get('postal_address')
+            current_code = result.get('postal_code')
+            if address:
+                new_postal = self.address_enricher.enrich_postal_code(address, current_code)
+                if new_postal and new_postal != current_code:
+                    result['postal_code'] = new_postal
+                    if self.logger_obj:
+                        self.logger_obj.log_enrichment(
+                            row_idx,
+                            'postal_code',
+                            current_code,
+                            new_postal
+                        )
+
         # Валидация полей по правилам (кроме region_code)
         for field, rules in FIELD_VALIDATION_RULES.items():
             if field in result and field != 'region_code':
@@ -2721,7 +2945,11 @@ class ExcelToJsonConverter:
                 oktmo_csv_path: Optional[Path] = None,
                 nationality_file: Optional[Path] = None,
                 gui_callback = None,
-                selected_region: str = None) -> Dict[str, Any]:
+                selected_region: str = None,
+                # 👇 НОВЫЕ ПАРАМЕТРЫ DADATA
+                use_dadata: bool = False,
+                dadata_api_url: str = 'http://localhost:3000/api/dadata',
+                dadata_timeout: int = 5) -> Dict[str, Any]:
         """
         Основной метод конвертации с созданием двух JSON файлов
         """
@@ -2737,6 +2965,12 @@ class ExcelToJsonConverter:
             self._log_gui_and_console(f"📍 Выбранный регион: {selected_region}", "INFO", gui_callback)
         else:
             self._log_gui_and_console("📍 Регион не выбран", "INFO", gui_callback)
+            
+        # 👇 Логируем настройки DaData
+        if use_dadata:
+            self._log_gui_and_console(f"🌐 DaData API: ВКЛЮЧЕН (URL: {dadata_api_url}, таймаут: {dadata_timeout}с)", "INFO", gui_callback)
+        else:
+            self._log_gui_and_console("🌐 DaData API: ВЫКЛЮЧЕН", "INFO", gui_callback)
 
         if not input_file.exists():
             error_msg = f"❌ Входной файл не найден: {input_file}"
@@ -2774,7 +3008,14 @@ class ExcelToJsonConverter:
             # Инициализация менеджеров
             self.oktmo_manager = OktmoManager(self.logger)
             self.nationality_manager = NationalityManager(self.logger)
-            self.address_enricher = AddressEnricher(self.oktmo_manager, self.nationality_manager, self.logger)
+            self.address_enricher = AddressEnricher(
+                self.oktmo_manager, 
+                self.nationality_manager, 
+                self.logger,
+                dadata_api_url=dadata_api_url,
+                use_dadata=use_dadata,
+                dadata_timeout=dadata_timeout
+            )
 
             # Загрузка внешнего справочника ОКТМО
             oktmo_loaded = False
@@ -2811,8 +3052,8 @@ class ExcelToJsonConverter:
             if oktmo_loaded or nationality_loaded:
                 self.address_enricher.print_stats()
 
-            if include_postal and not self.oktmo_manager.has_postal_data():
-                warning_msg = "⚠️ Поиск почтовых индексов невозможен: не загружен справочник ОКТМО"
+            if include_postal and not self.oktmo_manager.has_postal_data() and not use_dadata:
+                warning_msg = "⚠️ Поиск почтовых индексов невозможен: не загружен справочник ОКТМО и не включен DaData"
                 self._log_gui_and_console(warning_msg, "WARNING", gui_callback)
                 include_postal = False
 
@@ -2930,6 +3171,12 @@ class ExcelToJsonConverter:
                 self._log_gui_and_console(f"📄 huntingtickets.json: {len(tickets_data)} записей", "INFO", gui_callback)
                 if report_file:
                     self._log_gui_and_console(f"📊 Отчет создан: {report_file}", "INFO", gui_callback)
+                    
+                # 👇 Статистика DaData
+                if use_dadata and self.address_enricher:
+                    self._log_gui_and_console(f"📍 DaData статистика: обработано {self.address_enricher.dadata_stats['total_requests']} запросов, "
+                                             f"успешно {self.address_enricher.dadata_stats['successful']}, "
+                                             f"из кэша {self.address_enricher.dadata_stats['cached']}", "INFO", gui_callback)
             else:
                 self._log_gui_and_console("⚠️ Конвертация завершена, но данных нет!", "WARNING", gui_callback)
 
@@ -2942,7 +3189,11 @@ class ExcelToJsonConverter:
                 'output_folder': output_folder,
                 'report_file': report_file,
                 'log_file': self.log_file,
-                'enriched_data': self.enriched_data
+                'enriched_data': self.enriched_data,
+                # 👇 Дополнительные данные о DaData
+                'dadata_used': use_dadata,
+                'dadata_enriched': self.address_enricher.dadata_stats['successful'] if self.address_enricher else 0,
+                'dadata_stats': self.address_enricher.dadata_stats if self.address_enricher else None
             }
 
         except Exception as e:
