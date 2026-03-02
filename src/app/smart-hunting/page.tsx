@@ -173,15 +173,29 @@ export default function SmartHuntingPage() {
 
           {/* Кнопка скачивания шаблона */}
           <div className="flex justify-end mb-6">
-            <Link
-              href="/templates/шаблон.xlsx"
-              download
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition transform hover:scale-105 shadow-lg"
-            >
-              <Download size={20} />
-              Скачать шаблон XLSX
-            </Link>
-          </div>
+  <a
+    href="/templates/шаблон.xlsx"
+    download
+    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition transform hover:scale-105 shadow-lg"
+    onClick={(e) => {
+      // Проверяем существование файла
+      fetch('/templates/шаблон.xlsx')
+        .then(res => {
+          if (!res.ok) {
+            e.preventDefault();
+            alert('Файл шаблона не найден. Пожалуйста, создайте файл в public/templates/шаблон.xlsx');
+          }
+        })
+        .catch(() => {
+          e.preventDefault();
+          alert('Ошибка загрузки шаблона');
+        });
+    }}
+  >
+    <Download size={20} />
+    Скачать шаблон XLSX
+  </a>
+</div>
 
           {/* Форма конвертации */}
           <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700">
