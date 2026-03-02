@@ -179,20 +179,23 @@ export default function SmartHuntingPage() {
       addLog('processing', 'Отправка запроса к серверу...', 'pending');
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-        addLog('error', 'Превышен таймаут ожидания (30 секунд)', 'error');
-      }, 30000);
+// Увеличиваем таймаут до 55 секунд (менее maxDuration=60)
+const timeoutId = setTimeout(() => {
+  controller.abort();
+  addLog('error', 'Превышен таймаут ожидания (55 секунд)', 'error');
+}, 55000);
 
-      const startTime = performance.now();
-      const response = await fetch('/api/convert', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
-      });
-      const endTime = performance.now();
-
-      clearTimeout(timeoutId);
+try {
+  const startTime = performance.now();
+  const response = await fetch('/api/convert', {
+    method: 'POST',
+    body: formData,
+    signal: controller.signal,
+    // Важно: отключаем кэширование запроса
+    cache: 'no-store',
+  });
+  clearTimeout(timeoutId);
+  const endTime = performance.now();
 
       addLog('processing', `Ответ получен за ${(endTime - startTime).toFixed(0)}ms`, 'success');
       addLog('processing', `Статус ответа: ${response.status} ${response.statusText}`, 'info');
