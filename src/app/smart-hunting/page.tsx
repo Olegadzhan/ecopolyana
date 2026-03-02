@@ -193,7 +193,7 @@ export default function SmartHuntingPage() {
             <Link href="/map" className="hover:text-green-400 transition flex items-center gap-2">
               <MapPin size={18} /> Карта
             </Link>
-            <Link href="/tech" className="hover:text-green-400 transition flex items-center gap-2">
+            <Link href="/" className="hover:text-green-400 transition flex items-center gap-2">
               <Building2 size={18} /> Технологии
             </Link>
             <Link href="/smart-hunting" className="text-green-400 border-b-2 border-green-400 pb-1 flex items-center gap-2">
