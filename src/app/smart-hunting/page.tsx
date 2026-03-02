@@ -3,8 +3,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import {
-  Download, Upload, MapPin, Key, Loader2,
+import { 
+  Download, Upload, MapPin, Key, Loader2, 
   FileJson, CheckCircle2, AlertCircle, Wifi,
   WifiOff, Clock, FileText, Database,
   CheckCircle, XCircle
@@ -91,7 +91,7 @@ export default function SmartHuntingPage() {
   const checkDadataKey = async (key: string) => {
     setDadataStatus('checking');
     addLog('dadata', 'Проверка API ключа DaData...', 'pending');
-
+    
     try {
       const startTime = performance.now();
       const response = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
@@ -101,8 +101,8 @@ export default function SmartHuntingPage() {
           'Accept': 'application/json',
           'Authorization': `Token ${key}`
         },
-        body: JSON.stringify({
-          query: 'Москва',
+        body: JSON.stringify({ 
+          query: 'Москва', 
           count: 1,
           language: 'ru'
         })
@@ -131,7 +131,7 @@ export default function SmartHuntingPage() {
       setErrorMessage('');
       setDownloadUrl('');
       clearLogs();
-
+      
       addLog('file', `Файл загружен: ${newFile.name} (${(newFile.size / 1024).toFixed(2)} KB)`, 'success');
       addLog('file', 'Формат: ' + (newFile.type || 'XLSX'), 'info');
     }
@@ -166,7 +166,7 @@ export default function SmartHuntingPage() {
     setErrorMessage('');
     setDownloadUrl('');
     clearLogs();
-
+    
     addLog('file', 'Начало конвертации...', 'info');
     addLog('file', `Размер файла: ${(file.size / 1024).toFixed(2)} KB`, 'info');
 
@@ -177,7 +177,7 @@ export default function SmartHuntingPage() {
 
     try {
       addLog('processing', 'Отправка запроса к серверу...', 'pending');
-
+      
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
@@ -234,18 +234,18 @@ export default function SmartHuntingPage() {
       setDownloadUrl(url);
       setProgress(100);
       setStatus('success');
-
+      
       addLog('complete', 'Конвертация успешно завершена!', 'success');
-      addLog('complete', `Записей в файле: ожидайте...`, 'info');
+      addLog('complete', 'Файл готов к скачиванию', 'info');
 
       // Автоматическое скачивание
       const a = document.createElement('a');
       a.href = url;
-      a.download = `converted_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+      a.download = `converted_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-
+      
       addLog('complete', 'Файл скачан автоматически', 'success');
 
     } catch (error) {
@@ -420,7 +420,7 @@ export default function SmartHuntingPage() {
                     onChange={(e) => setDadataApiKey(e.target.value)}
                     placeholder="Введите ваш API ключ"
                     className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition pr-32
-                      ${dadataStatus === 'invalid' ? 'border-red-500' :
+                      ${dadataStatus === 'invalid' ? 'border-red-500' : 
                         dadataStatus === 'valid' ? 'border-green-500' : 'border-gray-600'}`}
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -492,8 +492,8 @@ export default function SmartHuntingPage() {
                     <div className="space-y-2">
                       {processLogs.map((log) => (
                         <div key={log.id} className="flex items-start gap-2 border-l-2 pl-2 py-1
-                          ${log.status === 'error' ? 'border-red-500' :
-                            log.status === 'success' ? 'border-green-500' :
+                          ${log.status === 'error' ? 'border-red-500' : 
+                            log.status === 'success' ? 'border-green-500' : 
                             log.status === 'pending' ? 'border-yellow-500' : 'border-gray-600'}"
                         >
                           <div className="flex-shrink-0 w-16 text-gray-500">
@@ -571,7 +571,7 @@ export default function SmartHuntingPage() {
               <div className="mt-6 text-center">
                 <a
                   href={downloadUrl}
-                  download={`converted_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`}
+                  download={`converted_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`}
                   className="text-green-400 hover:text-green-300 underline flex items-center justify-center gap-2"
                 >
                   <Download size={16} />
