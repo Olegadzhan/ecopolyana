@@ -12,9 +12,10 @@ export async function GET(
   
   // Получаем данные из кэша
   const cache = (global as any).__conversionCache;
+  
   if (!cache || !cache[jobId]) {
     return NextResponse.json(
-      { error: 'Данные не найдены или истекли' },
+      { error: 'Данные не найдены или истек срок хранения' },
       { status: 404 }
     );
   }
@@ -25,12 +26,12 @@ export async function GET(
   if (Date.now() > expires) {
     delete cache[jobId];
     return NextResponse.json(
-      { error: 'Срок хранения данных истёк' },
+      { error: 'Срок хранения данных истёк (1 час)' },
       { status: 410 }
     );
   }
   
-  // Возвращаем комбинированный JSON
+  // Формируем комбинированный JSON
   const combined = {
     meta: {
       jobId,
@@ -47,7 +48,7 @@ export async function GET(
   return new NextResponse(JSON.stringify(combined, null, 2), {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="converted_${jobId}.json"`,
+      'Content-Disposition': `attachment; filename="ecopolyana_converted_${jobId}.json"`,
       'Cache-Control': 'no-store, max-age=0',
     },
   });
