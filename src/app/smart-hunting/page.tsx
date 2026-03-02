@@ -1,10 +1,14 @@
-// src/app/smart-hunting/page.tsx
+// src/app/sunting/page.tsx
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useDropzone } from 'react-dropzone';
-import { Download, Upload, MapPin, Building2, Globe2, Key, Loader2, FileJson, CheckCircle2, AlertCircle } from 'lucide-react';
+import { 
+  Download, Upload, MapPin, Building2, 
+  Key, Loader2, FileJson, CheckCircle2, 
+  AlertCircle, FileQuestion 
+} from 'lucide-react';
 
 // Типы для данных
 type Region = {
@@ -25,20 +29,39 @@ export default function SmartHuntingPage() {
   const [progress, setProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [downloadUrl, setDownloadUrl] = useState<string>('');
+  const [isTemplateAvailable, setIsTemplateAvailable] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Загрузка списка регионов при монтировании
+  // Загрузка списка регионов и проверка шаблона при монтировании
   useEffect(() => {
     fetchRegions();
+    checkTemplateExistence();
   }, []);
+
+  // Проверка существования файла шаблона
+  const checkTemplateExistence = async () => {
+    try {
+      const response = await fetch('/templates/шаблон.xlsx', { method: 'HEAD' });
+      setIsTemplateAvailable(response.ok);
+    } catch {
+      setIsTemplateAvailable(false);
+    }
+  };
 
   const fetchRegions = async () => {
     try {
       const response = await fetch('/api/regions');
+      if (!response.ok) throw new Error('Ошибка загрузки регионов');
       const data = await response.json();
       setRegions(data);
     } catch (error) {
       console.error('Ошибка загрузки регионов:', error);
+      // Заглушка на случай ошибки API
+      setRegions([
+        { code: '77', name: 'Москва' },
+        { code: '78', name: 'Санкт-Петербург' },
+        { code: '50', name: 'Московская область' },
+      ]);
     }
   };
 
@@ -58,7 +81,8 @@ export default function SmartHuntingPage() {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.ms-excel': ['.xls']
     },
-    maxFiles: 1
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024, // 10MB
   });
 
   // Обработчик конвертации
@@ -81,23 +105,40 @@ export default function SmartHuntingPage() {
     formData.append('enableOktmo', String(enableOktmo));
 
     try {
-      // Симуляция прогресса
-      const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 10, 90));
-      }, 200);
+      // Используем AbortController для таймаута
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 секунд
 
       const response = await fetch('/api/convert', {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: controller.signal
       });
 
-      clearInterval(progressInterval);
+      clearTimeout(timeoutId);
 
+      // Проверка на ошибки HTTP
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Ошибка при конвертации');
+        let errorText = `HTTP ошибка ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorText = errorData.error || errorData.details || errorText;
+        } catch {
+          // Если не JSON, пробуем текст
+          const text = await response.text();
+          if (text) errorText = text;
+        }
+        throw new Error(errorText);
       }
 
+      // Проверяем, что пришёл именно файл, а не JSON с ошибкой
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('application/json')) {
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+      }
+
+      // Получаем blob и создаём ссылку
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
@@ -111,11 +152,15 @@ export default function SmartHuntingPage() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      // НЕ освобождаем URL сразу, чтобы ссылка "Скачать снова" работала
 
     } catch (error) {
       setStatus('error');
-      setErrorMessage(error instanceof Error ? error.message : 'Неизвестная ошибка');
+      if (error instanceof Error && error.name === 'AbortError') {
+        setErrorMessage('Превышено время ожидания. Попробуйте файл меньшего размера.');
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : 'Неизвестная ошибка');
+      }
       setProgress(0);
     }
   };
@@ -131,9 +176,9 @@ export default function SmartHuntingPage() {
     setProgress(0);
     setErrorMessage('');
     setDownloadUrl('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    // Освобождаем URL при сбросе
+    if (downloadUrl) window.URL.revokeObjectURL(downloadUrl);
   };
 
   return (
@@ -149,7 +194,7 @@ export default function SmartHuntingPage() {
               <MapPin size={18} /> Карта
             </Link>
             <Link href="/tech" className="hover:text-green-400 transition flex items-center gap-2">
-              <Globe2 size={18} /> Технологии
+              <Building2 size={18} /> Технологии
             </Link>
             <Link href="/smart-hunting" className="text-green-400 border-b-2 border-green-400 pb-1 flex items-center gap-2">
               <FileJson size={18} /> Умная охота
@@ -171,31 +216,24 @@ export default function SmartHuntingPage() {
             </p>
           </div>
 
-          {/* Кнопка скачивания шаблона */}
+          {/* Кнопка скачивания шаблона с проверкой наличия */}
           <div className="flex justify-end mb-6">
-  <a
-    href="/templates/шаблон.xlsx"
-    download
-    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition transform hover:scale-105 shadow-lg"
-    onClick={(e) => {
-      // Проверяем существование файла
-      fetch('/templates/шаблон.xlsx')
-        .then(res => {
-          if (!res.ok) {
-            e.preventDefault();
-            alert('Файл шаблона не найден. Пожалуйста, создайте файл в public/templates/шаблон.xlsx');
-          }
-        })
-        .catch(() => {
-          e.preventDefault();
-          alert('Ошибка загрузки шаблона');
-        });
-    }}
-  >
-    <Download size={20} />
-    Скачать шаблон XLSX
-  </a>
-</div>
+            {isTemplateAvailable ? (
+              <a
+                href="/templates/шаблон.xlsx"
+                download
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition transform hover:scale-105 shadow-lg"
+              >
+                <Download size={20} />
+                Скачать шаблон XLSX
+              </a>
+            ) : (
+              <div className="flex items-center gap-3 text-yellow-500 bg-yellow-500/10 px-6 py-3 rounded-lg border border-yellow-500/30">
+                <FileQuestion size={20} />
+                <span className="text-sm">Файл шаблона временно недоступен</span>
+              </div>
+            )}
+          </div>
 
           {/* Форма конвертации */}
           <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700">
@@ -213,7 +251,7 @@ export default function SmartHuntingPage() {
                   <div>
                     <p className="text-xl font-medium text-green-400">{file.name}</p>
                     <p className="text-sm text-gray-400">
-                      {(file.size / 1024).toFixed(2)} KB • {file.type || 'XLSX файл'}
+                      {(file.size / 1024).toFixed(2)} KB
                     </p>
                   </div>
                   <button
@@ -234,7 +272,7 @@ export default function SmartHuntingPage() {
                       {isDragActive ? 'Перетащите файл сюда' : 'Выберите файл или перетащите'}
                     </p>
                     <p className="text-sm text-gray-400">
-                      Поддерживаются форматы XLSX, XLS (до 10 МБ)
+                      Поддерживаются форматы XLSX, XLS (макс. 10 МБ)
                     </p>
                   </div>
                 </div>
@@ -312,9 +350,7 @@ export default function SmartHuntingPage() {
                 <p className="text-sm text-gray-400 flex items-start gap-2">
                   <AlertCircle size={16} className="text-green-400 flex-shrink-0 mt-0.5" />
                   <span>
-                    Поиск индексов сначала выполняется по локальному справочнику 
-                    <code className="mx-1 px-1 py-0.5 bg-gray-800 rounded text-xs">oktmo.csv</code>
-                    , затем через DaData (при наличии ключа)
+                    Поиск индексов сначала выполняется по локальному справочнику, затем через DaData
                   </span>
                 </p>
               </div>
@@ -360,21 +396,21 @@ export default function SmartHuntingPage() {
             {status === 'error' && (
               <div className="mt-6 p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-400 flex items-center gap-3">
                 <AlertCircle size={20} />
-                {errorMessage}
+                <span>{errorMessage}</span>
               </div>
             )}
 
             {/* Ссылка на повторное скачивание */}
             {status === 'success' && downloadUrl && (
               <div className="mt-6 text-center">
-                <Link
+                <a
                   href={downloadUrl}
                   download={`converted_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`}
                   className="text-green-400 hover:text-green-300 underline flex items-center justify-center gap-2"
                 >
                   <Download size={16} />
                   Скачать файл снова
-                </Link>
+                </a>
               </div>
             )}
           </div>
