@@ -126,6 +126,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Проверка размера файла (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: 'Файл слишком большой. Максимальный размер: 10MB' },
+        { status: 400 }
+      );
+    }
+
     // Чтение XLSX файла
     const bytes = await file.arrayBuffer();
     const workbook = XLSX.read(bytes, { type: 'buffer' });
@@ -134,6 +142,14 @@ export async function POST(request: NextRequest) {
     
     // Конвертация в JSON
     const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+    // Ограничение на количество записей (1000)
+    if (jsonData.length > 1000) {
+      return NextResponse.json(
+        { error: 'Слишком много записей. Максимум: 1000' },
+        { status: 400 }
+      );
+    }
 
     // Обогащение данных
     const enrichedData = await Promise.all(
@@ -195,10 +211,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Увеличиваем лимит на размер файла
-export const config = {
-  api: {
-    bodyParser: false,
-    responseLimit: '10mb',
-  },
-};
+// Новый способ настройки лимитов в Next.js 14 (App Router)
+export const runtime = 'nodejs'; // 'nodejs' (default) | 'edge'
+export const preferredRegion = 'iad1'; // опционально
+export const dynamic = 'force-dynamic'; // опционально
+export const maxDuration = 30; // максимальное время выполнения в секундах (для Vercel)
