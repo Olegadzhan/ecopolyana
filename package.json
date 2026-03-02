@@ -2,35 +2,55 @@
   "name": "ecopolyana",
   "version": "1.0.0",
   "private": true,
-  "description": "Информационно-развлекательный сайт в стиле мира будущего, современная охота и разведение животных",
+  "description": "Платформа умной охоты Экополяна с конвертером данных",
+  "author": "Olegadzhan",
+  "license": "MIT",
+  "homepage": "https://ecopolyana.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Olegadzhan/ecopolyana.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Olegadzhan/ecopolyana/issues"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "typecheck": "tsc --noEmit",
     "vercel-build": "next build"
   },
   "dependencies": {
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5",
+    "framer-motion": "^11.3.7",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.408.0",
     "next": "14.2.5",
+    "papaparse": "^5.4.1",
+    "postcss": "^8.4.39",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "framer-motion": "^11.0.3",
-    "lucide-react": "^0.363.0",
-    "xlsx": "^0.18.5",
-    "csv-parse": "^5.5.3",
-    "csv-stringify": "^6.4.5",
-    "react-dropzone": "^14.2.3"
+    "react-dropzone": "^14.2.3",
+    "react-leaflet": "^4.2.1",
+    "tailwind-merge": "^2.4.0",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.3",
+    "uuid": "^9.0.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@types/node": "^20.11.24",
-    "@types/react": "^18.2.61",
-    "@types/react-dom": "^18.2.19",
-    "typescript": "^5.3.3",
-    "tailwindcss": "^3.4.1",
-    "autoprefixer": "^10.4.18",
-    "postcss": "^8.4.35",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.5"
+    "@types/papaparse": "^5.3.14",
+    "@types/uuid": "^9.0.8",
+    "@types/leaflet": "^1.9.12"
   },
   "engines": {
     "node": ">=20.0.0"
