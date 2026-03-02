@@ -2,17 +2,27 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import Link from 'next/link';
 import { useDropzone } from 'react-dropzone';
-import { 
-  Download, Upload, MapPin, Key, Loader2, 
+import {
+  Download, Upload, MapPin, Key, Loader2,
   FileJson, CheckCircle2, AlertCircle, Wifi,
-  WifiOff, Github
+  WifiOff, Clock, FileText, Database,
+  CheckCircle, XCircle
 } from 'lucide-react';
 
 // Типы для данных
 type ConversionStatus = 'idle' | 'converting' | 'success' | 'error';
 type DadataStatus = 'idle' | 'checking' | 'valid' | 'invalid';
+
+// Тип для лога процесса
+type ProcessLog = {
+  id: number;
+  stage: 'file' | 'parsing' | 'dadata' | 'processing' | 'complete' | 'error';
+  message: string;
+  timestamp: string;
+  status: 'pending' | 'success' | 'error' | 'info';
+  details?: string;
+};
 
 export default function SmartHuntingPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -23,7 +33,46 @@ export default function SmartHuntingPage() {
   const [progress, setProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [downloadUrl, setDownloadUrl] = useState<string>('');
+  const [processLogs, setProcessLogs] = useState<ProcessLog[]>([]);
+  const [showLogs, setShowLogs] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Автоскролл логов
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [processLogs]);
+
+  // Добавление записи в лог
+  const addLog = (
+    stage: ProcessLog['stage'],
+    message: string,
+    status: ProcessLog['status'] = 'info',
+    details?: string
+  ) => {
+    const newLog: ProcessLog = {
+      id: Date.now() + Math.random(),
+      stage,
+      message,
+      timestamp: new Date().toLocaleTimeString('ru-RU', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3
+      }),
+      status,
+      details
+    };
+    setProcessLogs(prev => [...prev, newLog]);
+  };
+
+  // Очистка логов
+  const clearLogs = () => {
+    setProcessLogs([]);
+  };
 
   // Дебаунс для проверки API ключа
   useEffect(() => {
@@ -41,8 +90,10 @@ export default function SmartHuntingPage() {
   // Проверка API ключа DaData
   const checkDadataKey = async (key: string) => {
     setDadataStatus('checking');
-    
+    addLog('dadata', 'Проверка API ключа DaData...', 'pending');
+
     try {
+      const startTime = performance.now();
       const response = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
         method: 'POST',
         headers: {
@@ -50,30 +101,39 @@ export default function SmartHuntingPage() {
           'Accept': 'application/json',
           'Authorization': `Token ${key}`
         },
-        body: JSON.stringify({ 
-          query: 'Москва', 
+        body: JSON.stringify({
+          query: 'Москва',
           count: 1,
           language: 'ru'
         })
       });
+      const endTime = performance.now();
 
       if (response.ok) {
         setDadataStatus('valid');
+        addLog('dadata', `API ключ действителен (${(endTime - startTime).toFixed(0)}ms)`, 'success');
       } else {
         setDadataStatus('invalid');
+        addLog('dadata', `Ошибка API: ${response.status} ${response.statusText}`, 'error');
       }
     } catch (error) {
       setDadataStatus('invalid');
+      addLog('dadata', `Ошибка соединения: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`, 'error');
     }
   };
 
   // Обработчик загрузки файла
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
-      setFile(acceptedFiles[0]);
+      const newFile = acceptedFiles[0];
+      setFile(newFile);
       setStatus('idle');
       setErrorMessage('');
       setDownloadUrl('');
+      clearLogs();
+
+      addLog('file', `Файл загружен: ${newFile.name} (${(newFile.size / 1024).toFixed(2)} KB)`, 'success');
+      addLog('file', 'Формат: ' + (newFile.type || 'XLSX'), 'info');
     }
   }, []);
 
@@ -91,11 +151,13 @@ export default function SmartHuntingPage() {
   const handleConvert = async () => {
     if (!file) {
       setErrorMessage('Пожалуйста, выберите файл');
+      addLog('error', 'Ошибка: файл не выбран', 'error');
       return;
     }
 
     if (enablePostalSearch && dadataStatus !== 'valid') {
       setErrorMessage('Для поиска индексов нужен валидный API ключ DaData');
+      addLog('error', 'Ошибка: невалидный API ключ DaData', 'error');
       return;
     }
 
@@ -103,6 +165,10 @@ export default function SmartHuntingPage() {
     setProgress(0);
     setErrorMessage('');
     setDownloadUrl('');
+    clearLogs();
+
+    addLog('file', 'Начало конвертации...', 'info');
+    addLog('file', `Размер файла: ${(file.size / 1024).toFixed(2)} KB`, 'info');
 
     const formData = new FormData();
     formData.append('file', file);
@@ -110,54 +176,88 @@ export default function SmartHuntingPage() {
     formData.append('enablePostalSearch', String(enablePostalSearch));
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      addLog('processing', 'Отправка запроса к серверу...', 'pending');
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        addLog('error', 'Превышен таймаут ожидания (30 секунд)', 'error');
+      }, 30000);
+
+      const startTime = performance.now();
       const response = await fetch('/api/convert', {
         method: 'POST',
         body: formData,
         signal: controller.signal
       });
+      const endTime = performance.now();
 
       clearTimeout(timeoutId);
+
+      addLog('processing', `Ответ получен за ${(endTime - startTime).toFixed(0)}ms`, 'success');
+      addLog('processing', `Статус ответа: ${response.status} ${response.statusText}`, 'info');
 
       if (!response.ok) {
         let errorText = `HTTP ошибка ${response.status}`;
         try {
           const errorData = await response.json();
           errorText = errorData.error || errorData.details || errorText;
+          addLog('error', `Детали ошибки: ${JSON.stringify(errorData)}`, 'error');
         } catch {
           const text = await response.text();
-          if (text) errorText = text;
+          if (text) {
+            errorText = text;
+            addLog('error', `Текст ошибки: ${text}`, 'error');
+          }
         }
         throw new Error(errorText);
       }
 
+      addLog('processing', 'Обработка ответа сервера...', 'pending');
+
       const contentType = response.headers.get('content-type');
+      addLog('processing', `Content-Type: ${contentType}`, 'info');
+
       if (contentType?.includes('application/json')) {
         const data = await response.json();
-        if (data.error) throw new Error(data.error);
+        if (data.error) {
+          addLog('error', `Ошибка в данных: ${data.error}`, 'error');
+          throw new Error(data.error);
+        }
       }
 
+      addLog('processing', 'Получение файла...', 'pending');
       const blob = await response.blob();
+      addLog('processing', `Размер файла результата: ${(blob.size / 1024).toFixed(2)} KB`, 'success');
+
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
       setProgress(100);
       setStatus('success');
 
+      addLog('complete', 'Конвертация успешно завершена!', 'success');
+      addLog('complete', `Записей в файле: ожидайте...`, 'info');
+
+      // Автоматическое скачивание
       const a = document.createElement('a');
       a.href = url;
-      a.download = `converted_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+      a.download = `converted_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
 
+      addLog('complete', 'Файл скачан автоматически', 'success');
+
     } catch (error) {
       setStatus('error');
       if (error instanceof Error && error.name === 'AbortError') {
-        setErrorMessage('Превышено время ожидания. Попробуйте файл меньшего размера.');
+        const msg = 'Превышено время ожидания. Попробуйте файл меньшего размера.';
+        setErrorMessage(msg);
+        addLog('error', msg, 'error');
       } else {
-        setErrorMessage(error instanceof Error ? error.message : 'Неизвестная ошибка');
+        const msg = error instanceof Error ? error.message : 'Неизвестная ошибка';
+        setErrorMessage(msg);
+        addLog('error', `Критическая ошибка: ${msg}`, 'error');
       }
       setProgress(0);
     }
@@ -173,6 +273,7 @@ export default function SmartHuntingPage() {
     setProgress(0);
     setErrorMessage('');
     setDownloadUrl('');
+    clearLogs();
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (downloadUrl) window.URL.revokeObjectURL(downloadUrl);
   };
@@ -188,6 +289,33 @@ export default function SmartHuntingPage() {
         return <WifiOff size={16} className="text-red-400" />;
       default:
         return <Key size={16} className="text-gray-400" />;
+    }
+  };
+
+  // Получение иконки для лога
+  const getLogIcon = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <CheckCircle size={14} className="text-green-400" />;
+      case 'error':
+        return <XCircle size={14} className="text-red-400" />;
+      case 'pending':
+        return <Loader2 size={14} className="animate-spin text-yellow-400" />;
+      default:
+        return <Clock size={14} className="text-gray-400" />;
+    }
+  };
+
+  // Получение цвета для stage
+  const getStageColor = (stage: string) => {
+    switch (stage) {
+      case 'file': return 'text-blue-400';
+      case 'parsing': return 'text-purple-400';
+      case 'dadata': return 'text-green-400';
+      case 'processing': return 'text-yellow-400';
+      case 'complete': return 'text-green-400';
+      case 'error': return 'text-red-400';
+      default: return 'text-gray-400';
     }
   };
 
@@ -207,26 +335,6 @@ export default function SmartHuntingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
-      {/* Навигация */}
-      <nav className="border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
-            Экополяна
-          </Link>
-          <div className="flex items-center gap-6">
-            <Link href="/map" className="hover:text-green-400 transition flex items-center gap-2">
-              <MapPin size={18} /> Карта
-            </Link>
-            <Link href="https://github.com/Olegadzhan/ecopolyana" target="_blank" className="hover:text-green-400 transition flex items-center gap-2">
-              <Github size={18} /> GitHub
-            </Link>
-            <Link href="/smart-hunting" className="text-green-400 border-b-2 border-green-400 pb-1 flex items-center gap-2">
-              <FileJson size={18} /> Умная охота
-            </Link>
-          </div>
-        </div>
-      </nav>
-
       {/* Основной контент */}
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto">
@@ -312,7 +420,7 @@ export default function SmartHuntingPage() {
                     onChange={(e) => setDadataApiKey(e.target.value)}
                     placeholder="Введите ваш API ключ"
                     className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition pr-32
-                      ${dadataStatus === 'invalid' ? 'border-red-500' : 
+                      ${dadataStatus === 'invalid' ? 'border-red-500' :
                         dadataStatus === 'valid' ? 'border-green-500' : 'border-gray-600'}`}
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -350,19 +458,69 @@ export default function SmartHuntingPage() {
                 </label>
               </div>
 
-              {/* Информация о работе */}
-              <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
-                <p className="text-sm text-gray-400 flex items-start gap-2">
-                  <AlertCircle size={16} className="text-green-400 flex-shrink-0 mt-0.5" />
-                  <span>
-                    <strong className="text-white">Как это работает:</strong> При включенной опции для каждого адреса из поля 
-                    <code className="mx-1 px-1 py-0.5 bg-gray-800 rounded text-xs">postal_address</code> 
-                    будет выполнен запрос к DaData для получения почтового индекса. 
-                    Результат сохраняется в поле <code className="mx-1 px-1 py-0.5 bg-gray-800 rounded text-xs">postal_code</code>.
-                  </span>
-                </p>
-              </div>
+              {/* Кнопка показа логов */}
+              <button
+                onClick={() => setShowLogs(!showLogs)}
+                className="text-sm text-gray-400 hover:text-white transition flex items-center gap-2"
+              >
+                <FileText size={16} />
+                {showLogs ? 'Скрыть' : 'Показать'} процесс конвертации
+              </button>
             </div>
+
+            {/* Лог процесса */}
+            {showLogs && (
+              <div className="mb-8 bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
+                <div className="bg-gray-800/50 px-4 py-2 border-b border-gray-700 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database size={16} className="text-green-400" />
+                    <span className="text-sm font-medium">Лог процесса</span>
+                  </div>
+                  <button
+                    onClick={clearLogs}
+                    className="text-xs text-gray-400 hover:text-white transition"
+                  >
+                    Очистить
+                  </button>
+                </div>
+                <div className="p-4 font-mono text-xs h-64 overflow-y-auto">
+                  {processLogs.length === 0 ? (
+                    <div className="text-gray-500 text-center py-8">
+                      Нет записей. Начните конвертацию...
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {processLogs.map((log) => (
+                        <div key={log.id} className="flex items-start gap-2 border-l-2 pl-2 py-1
+                          ${log.status === 'error' ? 'border-red-500' :
+                            log.status === 'success' ? 'border-green-500' :
+                            log.status === 'pending' ? 'border-yellow-500' : 'border-gray-600'}"
+                        >
+                          <div className="flex-shrink-0 w-16 text-gray-500">
+                            {log.timestamp}
+                          </div>
+                          <div className="flex-shrink-0 mt-0.5">
+                            {getLogIcon(log.status)}
+                          </div>
+                          <div className="flex-1">
+                            <span className={`${getStageColor(log.stage)} font-medium`}>
+                              [{log.stage}]
+                            </span>
+                            <span className="text-gray-300 ml-2">{log.message}</span>
+                            {log.details && (
+                              <div className="text-gray-500 text-xs mt-1 ml-4">
+                                {log.details}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={logsEndRef} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Кнопка конвертации */}
             <button
@@ -413,7 +571,7 @@ export default function SmartHuntingPage() {
               <div className="mt-6 text-center">
                 <a
                   href={downloadUrl}
-                  download={`converted_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`}
+                  download={`converted_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`}
                   className="text-green-400 hover:text-green-300 underline flex items-center justify-center gap-2"
                 >
                   <Download size={16} />
@@ -421,31 +579,6 @@ export default function SmartHuntingPage() {
                 </a>
               </div>
             )}
-          </div>
-
-          {/* Информационные блоки */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-            <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-700">
-              <div className="text-3xl mb-2">50+</div>
-              <div className="text-gray-400">Локаций</div>
-            </div>
-            <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-700">
-              <div className="text-3xl mb-2">24/7</div>
-              <div className="text-gray-400">Мониторинг</div>
-            </div>
-            <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-700">
-              <div className="text-3xl mb-2">AI</div>
-              <div className="text-gray-400">Технологии</div>
-            </div>
-          </div>
-
-          {/* Технологические теги */}
-          <div className="flex flex-wrap justify-center gap-3 mt-8 text-sm">
-            <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🌱 Экология</span>
-            <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🤖 AI/ML</span>
-            <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🚁 Дроны</span>
-            <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🧬 Биотех</span>
-            <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🔍 DaData</span>
           </div>
         </div>
       </main>
