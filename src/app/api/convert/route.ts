@@ -1,113 +1,40 @@
 // src/app/api/convert/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import fs from 'fs/promises';
-import path from 'path';
-import { parse } from 'csv-parse/sync';
 
-// Типы
-type OktmoRecord = {
-  code: string;
-  parentCode: string | null;
-  name: string;
-  postal_code?: string;
-};
-
-// Загрузка справочника ОКТМО (с кэшированием)
-let oktmoCache: OktmoRecord[] | null = null;
-
-async function loadOktmoFromCsv(): Promise<OktmoRecord[]> {
-  if (oktmoCache) return oktmoCache;
+// Поиск почтового индекса через DaData
+async function findPostalCodeViaDadata(
+  address: string,
+  apiKey?: string
+): Promise<string | null> {
+  if (!apiKey || !address) return null;
   
   try {
-    const filePath = path.join(process.cwd(), 'public', 'templates', 'oktmo.csv');
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    
-    const records = parse(fileContent, {
-      columns: ['code', 'parentCode', 'name', 'postal_code'],
-      skip_empty_lines: true,
-      delimiter: ';',
-      relax_quotes: true,
+    const response = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Token ${apiKey}`
+      },
+      body: JSON.stringify({ 
+        query: address, 
+        count: 1,
+        language: 'ru'
+      })
     });
-    
-    oktmoCache = records.map((r: any) => ({
-      ...r,
-      parentCode: r.parentCode || null,
-    }));
-    
-    return oktmoCache;
-  } catch (error) {
-    console.error('Ошибка загрузки справочника ОКТМО:', error);
-    return [];
-  }
-}
 
-// Поиск почтового индекса
-async function findPostalCode(
-  address: string, 
-  dadataApiKey?: string
-): Promise<string | null> {
-  if (!address) return null;
-
-  // 1. Поиск по локальному справочнику
-  const oktmoRecords = await loadOktmoFromCsv();
-  
-  // Простой поиск по вхождению названия (можно улучшить)
-  const localMatch = oktmoRecords.find(record => 
-    record.postal_code && 
-    address.toLowerCase().includes(record.name.toLowerCase())
-  );
-  
-  if (localMatch?.postal_code) {
-    return localMatch.postal_code;
-  }
-
-  // 2. Поиск через DaData (если есть ключ)
-  if (dadataApiKey) {
-    try {
-      const response = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Token ${dadataApiKey}`
-        },
-        body: JSON.stringify({ 
-          query: address, 
-          count: 1,
-          language: 'ru'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`DaData API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.suggestions && data.suggestions.length > 0) {
-        return data.suggestions[0].data.postal_code || null;
-      }
-    } catch (error) {
-      console.error('Ошибка при запросе к DaData:', error);
+    if (!response.ok) {
+      console.warn(`DaData API error: ${response.status}`);
       return null;
     }
+
+    const data = await response.json();
+    return data.suggestions?.[0]?.data?.postal_code || null;
+  } catch (error) {
+    console.error('Ошибка при запросе к DaData:', error);
+    return null;
   }
-
-  return null;
-}
-
-// Поиск кода ОКТМО по адресу
-async function findOktmoCode(address: string): Promise<string | null> {
-  if (!address) return null;
-  
-  const oktmoRecords = await loadOktmoFromCsv();
-  
-  // Поиск по вхождению названия
-  const match = oktmoRecords.find(record => 
-    address.toLowerCase().includes(record.name.toLowerCase())
-  );
-  
-  return match?.code || null;
 }
 
 export async function POST(request: NextRequest) {
@@ -117,7 +44,6 @@ export async function POST(request: NextRequest) {
     const regionCode = formData.get('regionCode') as string;
     const dadataApiKey = formData.get('dadataApiKey') as string;
     const enablePostalSearch = formData.get('enablePostalSearch') === 'true';
-    const enableOktmo = formData.get('enableOktmo') === 'true';
 
     if (!file) {
       return NextResponse.json(
@@ -152,38 +78,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Обогащение данных
-    const enrichedData = await Promise.all(
-      jsonData.map(async (record, index) => {
-        const enrichedRecord = { ...record };
+    const enrichedData = [];
+    
+    for (let i = 0; i < jsonData.length; i++) {
+      const record = jsonData[i];
+      const enrichedRecord = { ...record };
 
-        // Добавляем код региона, если выбран
-        if (regionCode) {
-          enrichedRecord.region_code = regionCode;
+      // Добавляем код региона, если выбран
+      if (regionCode) {
+        enrichedRecord.region_code = regionCode;
+      }
+
+      // Поиск почтового индекса через DaData
+      if (enablePostalSearch && dadataApiKey && record.postal_address) {
+        // Добавляем небольшую задержку между запросами, чтобы не превысить лимиты API
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
-
-        // Поиск почтового индекса
-        if (enablePostalSearch && record.postal_address) {
-          const postalCode = await findPostalCode(record.postal_address, dadataApiKey);
-          if (postalCode) {
-            enrichedRecord.postal_code = postalCode;
-          }
+        
+        const postalCode = await findPostalCodeViaDadata(record.postal_address, dadataApiKey);
+        if (postalCode) {
+          enrichedRecord.postal_code = postalCode;
         }
+      }
 
-        // Поиск кода ОКТМО
-        if (enableOktmo && record.address) {
-          const oktmoCode = await findOktmoCode(record.address);
-          if (oktmoCode) {
-            enrichedRecord.oktmo_code = oktmoCode;
-          }
-        }
+      // Добавляем метаданные
+      enrichedRecord.processed_at = new Date().toISOString();
+      enrichedRecord.record_id = i + 1;
 
-        // Добавляем метаданные
-        enrichedRecord.processed_at = new Date().toISOString();
-        enrichedRecord.record_id = index + 1;
-
-        return enrichedRecord;
-      })
-    );
+      enrichedData.push(enrichedRecord);
+    }
 
     // Создаем JSON файл для скачивания
     const jsonString = JSON.stringify(enrichedData, null, 2);
@@ -211,8 +135,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Новый способ настройки лимитов в Next.js 14 (App Router)
-export const runtime = 'nodejs'; // 'nodejs' (default) | 'edge'
-export const preferredRegion = 'iad1'; // опционально
-export const dynamic = 'force-dynamic'; // опционально
-export const maxDuration = 30; // максимальное время выполнения в секундах (для Vercel)
+// Настройки для Vercel
+export const runtime = 'nodejs';
+export const maxDuration = 30; // 30 секунд максимальное время выполнения
