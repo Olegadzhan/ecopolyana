@@ -1,99 +1,158 @@
-// src/app/api/convert/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import * as XLSX from 'xlsx';
+// src/app/smart-hunting/page.tsx (упрощенная версия для теста)
+'use client';
 
-export async function POST(request: NextRequest) {
-  try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const dadataApiKey = formData.get('dadataApiKey') as string;
-    const enablePostalSearch = formData.get('enablePostalSearch') === 'true';
+import { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { Upload, Loader2, FileJson, AlertCircle } from 'lucide-react';
 
-    if (!file) {
-      return NextResponse.json({ error: 'Файл не предоставлен' }, { status: 400 });
+export default function SmartHuntingPage() {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'converting' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [logs, setLogs] = useState<string[]>([]);
+
+  const addLog = (msg: string) => {
+    setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  };
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      setFile(acceptedFiles[0]);
+      setStatus('idle');
+      setErrorMessage('');
+      setLogs([]);
+      addLog(`Файл загружен: ${acceptedFiles[0].name}`);
     }
+  }, []);
 
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'Файл слишком большой. Максимум: 10MB' }, { status: 400 });
-    }
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls']
+    },
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024,
+  });
 
-    // Чтение XLSX файла
-    const bytes = await file.arrayBuffer();
-    const workbook = XLSX.read(bytes, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+  const handleConvert = async () => {
+    if (!file) return;
 
-    if (jsonData.length > 1000) {
-      return NextResponse.json({ error: 'Слишком много записей. Максимум: 1000' }, { status: 400 });
-    }
+    setStatus('converting');
+    setErrorMessage('');
+    setLogs([]);
+    addLog('Начало конвертации...');
 
-    // Обогащение данных через DaData
-    const enrichedData = [];
-    
-    for (let i = 0; i < jsonData.length; i++) {
-      const record = jsonData[i];
-      const enrichedRecord = { ...record };
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('enablePostalSearch', 'false');
 
-      // Поиск почтового индекса через DaData
-      if (enablePostalSearch && dadataApiKey && record.postal_address) {
-        try {
-          const response = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Authorization': `Token ${dadataApiKey}`
-            },
-            body: JSON.stringify({ 
-              query: record.postal_address, 
-              count: 1,
-              language: 'ru'
-            })
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.suggestions && data.suggestions.length > 0) {
-              enrichedRecord.postal_code = data.suggestions[0].data.postal_code || null;
-            }
-          }
-        } catch (error) {
-          console.error('Ошибка DaData для адреса:', record.postal_address, error);
-          // Продолжаем обработку следующих записей
-        }
-      }
-
-      enrichedRecord.processed_at = new Date().toISOString();
-      enrichedRecord.record_id = i + 1;
+    try {
+      addLog('Отправка запроса к /api/convert...');
       
-      enrichedData.push(enrichedRecord);
-    }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        addLog('❌ Таймаут 30 секунд');
+      }, 30000);
 
-    // Создаем JSON файл
-    const jsonString = JSON.stringify(enrichedData, null, 2);
-    const jsonBuffer = Buffer.from(jsonString, 'utf-8');
+      const response = await fetch('/api/convert', {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal
+      });
 
-    return new NextResponse(jsonBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="converted_${Date.now()}.json"`,
-        'Content-Length': jsonBuffer.length.toString()
+      clearTimeout(timeoutId);
+      addLog(`Статус ответа: ${response.status}`);
+
+      if (!response.ok) {
+        const text = await response.text();
+        addLog(`❌ Ошибка: ${text}`);
+        throw new Error(text);
       }
-    });
 
-  } catch (error) {
-    console.error('Ошибка конвертации:', error);
-    return NextResponse.json(
-      { 
-        error: 'Ошибка при конвертации файла',
-        details: error instanceof Error ? error.message : 'Неизвестная ошибка'
-      },
-      { status: 500 }
-    );
-  }
+      const blob = await response.blob();
+      addLog(`✅ Получен файл размером ${(blob.size / 1024).toFixed(2)} KB`);
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `test_${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      addLog('✅ Файл скачан');
+      setStatus('success');
+
+    } catch (error) {
+      setStatus('error');
+      const msg = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      setErrorMessage(msg);
+      addLog(`❌ Ошибка: ${msg}`);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-8">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Тест конвертера</h1>
+        
+        {/* Dropzone */}
+        <div
+          {...getRootProps()}
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer mb-6
+            ${isDragActive ? 'border-green-500 bg-green-500/10' : 'border-gray-600'}`}
+        >
+          <input {...getInputProps()} />
+          {file ? (
+            <div>
+              <p className="text-green-400">{file.name}</p>
+              <p className="text-sm text-gray-400">{(file.size / 1024).toFixed(2)} KB</p>
+            </div>
+          ) : (
+            <p>{isDragActive ? 'Перетащите файл' : 'Выберите XLSX файл'}</p>
+          )}
+        </div>
+
+        {/* Кнопка */}
+        <button
+          onClick={handleConvert}
+          disabled={!file || status === 'converting'}
+          className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 px-4 py-3 rounded-lg mb-6"
+        >
+          {status === 'converting' ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="animate-spin" size={20} />
+              Конвертация...
+            </span>
+          ) : (
+            'Начать конвертацию'
+          )}
+        </button>
+
+        {/* Логи */}
+        {logs.length > 0 && (
+          <div className="bg-gray-800 rounded-lg p-4 font-mono text-sm">
+            <h3 className="text-lg mb-2">Лог:</h3>
+            <div className="space-y-1 max-h-96 overflow-y-auto">
+              {logs.map((log, i) => (
+                <div key={i} className="text-gray-300 border-l-2 border-gray-600 pl-2">
+                  {log}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Ошибка */}
+        {errorMessage && (
+          <div className="mt-4 p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-400 flex items-center gap-2">
+            <AlertCircle size={20} />
+            {errorMessage}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
-
-export const runtime = 'nodejs';
-export const maxDuration = 30;
