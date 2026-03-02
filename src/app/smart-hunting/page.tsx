@@ -1,67 +1,69 @@
-// src/app/sunting/page.tsx
+// src/app/smart-hunting/page.tsx
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useDropzone } from 'react-dropzone';
 import { 
-  Download, Upload, MapPin, Building2, 
-  Key, Loader2, FileJson, CheckCircle2, 
-  AlertCircle, FileQuestion 
+  Download, Upload, MapPin, Key, Loader2, 
+  FileJson, CheckCircle2, AlertCircle, Wifi,
+  WifiOff, Github
 } from 'lucide-react';
 
 // Типы для данных
-type Region = {
-  code: string;
-  name: string;
-};
-
 type ConversionStatus = 'idle' | 'converting' | 'success' | 'error';
+type DadataStatus = 'idle' | 'checking' | 'valid' | 'invalid';
 
 export default function SmartHuntingPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [selectedRegion, setSelectedRegion] = useState<string>('');
   const [dadataApiKey, setDadataApiKey] = useState<string>('');
+  const [dadataStatus, setDadataStatus] = useState<DadataStatus>('idle');
   const [enablePostalSearch, setEnablePostalSearch] = useState<boolean>(true);
-  const [enableOktmo, setEnableOktmo] = useState<boolean>(true);
   const [status, setStatus] = useState<ConversionStatus>('idle');
   const [progress, setProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [downloadUrl, setDownloadUrl] = useState<string>('');
-  const [isTemplateAvailable, setIsTemplateAvailable] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Загрузка списка регионов и проверка шаблона при монтировании
+  // Дебаунс для проверки API ключа
   useEffect(() => {
-    fetchRegions();
-    checkTemplateExistence();
-  }, []);
+    const timer = setTimeout(() => {
+      if (dadataApiKey && dadataApiKey.length > 10) {
+        checkDadataKey(dadataApiKey);
+      } else {
+        setDadataStatus('idle');
+      }
+    }, 500);
 
-  // Проверка существования файла шаблона
-  const checkTemplateExistence = async () => {
-    try {
-      const response = await fetch('/templates/шаблон.xlsx', { method: 'HEAD' });
-      setIsTemplateAvailable(response.ok);
-    } catch {
-      setIsTemplateAvailable(false);
-    }
-  };
+    return () => clearTimeout(timer);
+  }, [dadataApiKey]);
 
-  const fetchRegions = async () => {
+  // Проверка API ключа DaData
+  const checkDadataKey = async (key: string) => {
+    setDadataStatus('checking');
+    
     try {
-      const response = await fetch('/api/regions');
-      if (!response.ok) throw new Error('Ошибка загрузки регионов');
-      const data = await response.json();
-      setRegions(data);
+      const response = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Token ${key}`
+        },
+        body: JSON.stringify({ 
+          query: 'Москва', 
+          count: 1,
+          language: 'ru'
+        })
+      });
+
+      if (response.ok) {
+        setDadataStatus('valid');
+      } else {
+        setDadataStatus('invalid');
+      }
     } catch (error) {
-      console.error('Ошибка загрузки регионов:', error);
-      // Заглушка на случай ошибки API
-      setRegions([
-        { code: '77', name: 'Москва' },
-        { code: '78', name: 'Санкт-Петербург' },
-        { code: '50', name: 'Московская область' },
-      ]);
+      setDadataStatus('invalid');
     }
   };
 
@@ -92,6 +94,11 @@ export default function SmartHuntingPage() {
       return;
     }
 
+    if (enablePostalSearch && dadataStatus !== 'valid') {
+      setErrorMessage('Для поиска индексов нужен валидный API ключ DaData');
+      return;
+    }
+
     setStatus('converting');
     setProgress(0);
     setErrorMessage('');
@@ -99,15 +106,12 @@ export default function SmartHuntingPage() {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('regionCode', selectedRegion);
     formData.append('dadataApiKey', dadataApiKey);
     formData.append('enablePostalSearch', String(enablePostalSearch));
-    formData.append('enableOktmo', String(enableOktmo));
 
     try {
-      // Используем AbortController для таймаута
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 секунд
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const response = await fetch('/api/convert', {
         method: 'POST',
@@ -117,42 +121,36 @@ export default function SmartHuntingPage() {
 
       clearTimeout(timeoutId);
 
-      // Проверка на ошибки HTTP
       if (!response.ok) {
         let errorText = `HTTP ошибка ${response.status}`;
         try {
           const errorData = await response.json();
           errorText = errorData.error || errorData.details || errorText;
         } catch {
-          // Если не JSON, пробуем текст
           const text = await response.text();
           if (text) errorText = text;
         }
         throw new Error(errorText);
       }
 
-      // Проверяем, что пришёл именно файл, а не JSON с ошибкой
       const contentType = response.headers.get('content-type');
       if (contentType?.includes('application/json')) {
         const data = await response.json();
         if (data.error) throw new Error(data.error);
       }
 
-      // Получаем blob и создаём ссылку
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
       setProgress(100);
       setStatus('success');
 
-      // Автоматическое скачивание
       const a = document.createElement('a');
       a.href = url;
       a.download = `converted_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      // НЕ освобождаем URL сразу, чтобы ссылка "Скачать снова" работала
 
     } catch (error) {
       setStatus('error');
@@ -168,17 +166,43 @@ export default function SmartHuntingPage() {
   // Сброс формы
   const handleReset = () => {
     setFile(null);
-    setSelectedRegion('');
     setDadataApiKey('');
+    setDadataStatus('idle');
     setEnablePostalSearch(true);
-    setEnableOktmo(true);
     setStatus('idle');
     setProgress(0);
     setErrorMessage('');
     setDownloadUrl('');
     if (fileInputRef.current) fileInputRef.current.value = '';
-    // Освобождаем URL при сбросе
     if (downloadUrl) window.URL.revokeObjectURL(downloadUrl);
+  };
+
+  // Получение иконки статуса DaData
+  const getDadataIcon = () => {
+    switch (dadataStatus) {
+      case 'checking':
+        return <Loader2 size={16} className="animate-spin text-yellow-400" />;
+      case 'valid':
+        return <Wifi size={16} className="text-green-400" />;
+      case 'invalid':
+        return <WifiOff size={16} className="text-red-400" />;
+      default:
+        return <Key size={16} className="text-gray-400" />;
+    }
+  };
+
+  // Получение текста статуса DaData
+  const getDadataStatusText = () => {
+    switch (dadataStatus) {
+      case 'checking':
+        return 'Проверка ключа...';
+      case 'valid':
+        return 'Ключ действителен';
+      case 'invalid':
+        return 'Недействительный ключ';
+      default:
+        return 'Введите API ключ';
+    }
   };
 
   return (
@@ -193,8 +217,8 @@ export default function SmartHuntingPage() {
             <Link href="/map" className="hover:text-green-400 transition flex items-center gap-2">
               <MapPin size={18} /> Карта
             </Link>
-            <Link href="/" className="hover:text-green-400 transition flex items-center gap-2">
-              <Building2 size={18} /> Технологии
+            <Link href="https://github.com/Olegadzhan/ecopolyana" target="_blank" className="hover:text-green-400 transition flex items-center gap-2">
+              <Github size={18} /> GitHub
             </Link>
             <Link href="/smart-hunting" className="text-green-400 border-b-2 border-green-400 pb-1 flex items-center gap-2">
               <FileJson size={18} /> Умная охота
@@ -212,27 +236,20 @@ export default function SmartHuntingPage() {
               Конвертер охотничьих данных
             </h1>
             <p className="text-gray-400 text-lg">
-              Преобразуйте XLSX файлы в JSON с автоматическим обогащением данных
+              Преобразуйте XLSX файлы в JSON с автоматическим обогащением данных через DaData
             </p>
           </div>
 
-          {/* Кнопка скачивания шаблона с проверкой наличия */}
+          {/* Кнопка скачивания шаблона */}
           <div className="flex justify-end mb-6">
-            {isTemplateAvailable ? (
-              <a
-                href="/templates/шаблон.xlsx"
-                download
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition transform hover:scale-105 shadow-lg"
-              >
-                <Download size={20} />
-                Скачать шаблон XLSX
-              </a>
-            ) : (
-              <div className="flex items-center gap-3 text-yellow-500 bg-yellow-500/10 px-6 py-3 rounded-lg border border-yellow-500/30">
-                <FileQuestion size={20} />
-                <span className="text-sm">Файл шаблона временно недоступен</span>
-              </div>
-            )}
+            <a
+              href="/templates/template.xlsx"
+              download
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition transform hover:scale-105 shadow-lg"
+            >
+              <Download size={20} />
+              Скачать шаблон XLSX
+            </a>
           </div>
 
           {/* Форма конвертации */}
@@ -280,44 +297,45 @@ export default function SmartHuntingPage() {
             </div>
 
             {/* Настройки конвертации */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              {/* Регион */}
+            <div className="space-y-6 mb-8">
+              {/* API ключ DaData с проверкой */}
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                  <MapPin size={16} className="text-green-400" />
-                  Код региона
+                  {getDadataIcon()}
+                  API ключ DaData
+                  <span className="text-xs text-gray-500 ml-2">(получить можно на dadata.ru)</span>
                 </label>
-                <select
-                  value={selectedRegion}
-                  onChange={(e) => setSelectedRegion(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500 transition"
-                >
-                  <option value="">Выберите регион</option>
-                  {regions.map((region) => (
-                    <option key={region.code} value={region.code}>
-                      {region.code} - {region.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={dadataApiKey}
+                    onChange={(e) => setDadataApiKey(e.target.value)}
+                    placeholder="Введите ваш API ключ"
+                    className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition pr-32
+                      ${dadataStatus === 'invalid' ? 'border-red-500' : 
+                        dadataStatus === 'valid' ? 'border-green-500' : 'border-gray-600'}`}
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <span className={`text-sm px-2 py-1 rounded ${
+                      dadataStatus === 'valid' ? 'bg-green-500/20 text-green-400' :
+                      dadataStatus === 'invalid' ? 'bg-red-500/20 text-red-400' :
+                      dadataStatus === 'checking' ? 'bg-yellow-500/20 text-yellow-400' :
+                      'bg-gray-600/50 text-gray-400'
+                    }`}>
+                      {getDadataStatusText()}
+                    </span>
+                  </div>
+                </div>
+                {dadataStatus === 'invalid' && (
+                  <p className="text-sm text-red-400 flex items-center gap-1 mt-1">
+                    <AlertCircle size={14} />
+                    Недействительный API ключ. Проверьте ключ на dadata.ru
+                  </p>
+                )}
               </div>
 
-              {/* API ключ DaData */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                  <Key size={16} className="text-green-400" />
-                  API ключ DaData (опционально)
-                </label>
-                <input
-                  type="password"
-                  value={dadataApiKey}
-                  onChange={(e) => setDadataApiKey(e.target.value)}
-                  placeholder="Введите ваш API ключ"
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition"
-                />
-              </div>
-
-              {/* Чекбоксы опций */}
-              <div className="space-y-3">
+              {/* Чекбокс опции */}
+              <div className="flex items-center gap-3">
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <input
                     type="checkbox"
@@ -327,30 +345,20 @@ export default function SmartHuntingPage() {
                   />
                   <span className="text-gray-300 group-hover:text-white transition flex items-center gap-2">
                     <MapPin size={16} className="text-green-400" />
-                    Автопоиск почтовых индексов
-                  </span>
-                </label>
-
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={enableOktmo}
-                    onChange={(e) => setEnableOktmo(e.target.checked)}
-                    className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500 focus:ring-offset-gray-800"
-                  />
-                  <span className="text-gray-300 group-hover:text-white transition flex items-center gap-2">
-                    <Building2 size={16} className="text-green-400" />
-                    Добавить коды ОКТМО
+                    Автопоиск почтовых индексов через DaData
                   </span>
                 </label>
               </div>
 
-              {/* Информация о справочнике */}
+              {/* Информация о работе */}
               <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
                 <p className="text-sm text-gray-400 flex items-start gap-2">
                   <AlertCircle size={16} className="text-green-400 flex-shrink-0 mt-0.5" />
                   <span>
-                    Поиск индексов сначала выполняется по локальному справочнику, затем через DaData
+                    <strong className="text-white">Как это работает:</strong> При включенной опции для каждого адреса из поля 
+                    <code className="mx-1 px-1 py-0.5 bg-gray-800 rounded text-xs">postal_address</code> 
+                    будет выполнен запрос к DaData для получения почтового индекса. 
+                    Результат сохраняется в поле <code className="mx-1 px-1 py-0.5 bg-gray-800 rounded text-xs">postal_code</code>.
                   </span>
                 </p>
               </div>
@@ -359,7 +367,7 @@ export default function SmartHuntingPage() {
             {/* Кнопка конвертации */}
             <button
               onClick={handleConvert}
-              disabled={!file || status === 'converting'}
+              disabled={!file || status === 'converting' || (enablePostalSearch && dadataStatus !== 'valid')}
               className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white px-8 py-4 rounded-xl font-semibold flex items-center justify-center gap-3 transition transform hover:scale-[1.02] hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {status === 'converting' ? (
@@ -437,6 +445,7 @@ export default function SmartHuntingPage() {
             <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🤖 AI/ML</span>
             <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🚁 Дроны</span>
             <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🧬 Биотех</span>
+            <span className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">🔍 DaData</span>
           </div>
         </div>
       </main>
