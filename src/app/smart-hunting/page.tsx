@@ -1,7 +1,7 @@
 // src/app/smart-hunting/page.tsx
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useDropzone } from 'react-dropzone';
 import { Download, Upload, MapPin, Building2, Globe2, Key, Loader2, FileJson, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -28,9 +28,9 @@ export default function SmartHuntingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Загрузка списка регионов при монтировании
-  useState(() => {
+  useEffect(() => {
     fetchRegions();
-  });
+  }, []);
 
   const fetchRegions = async () => {
     try {
@@ -81,7 +81,7 @@ export default function SmartHuntingPage() {
     formData.append('enableOktmo', String(enableOktmo));
 
     try {
-      // Симуляция прогресса (можно заменить на реальные события от сервера)
+      // Симуляция прогресса
       const progressInterval = setInterval(() => {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 200);
@@ -95,7 +95,7 @@ export default function SmartHuntingPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Ошибка при конвертации');
+        throw new Error(error.error || 'Ошибка при конвертации');
       }
 
       const blob = await response.blob();
@@ -357,9 +357,6 @@ export default function SmartHuntingPage() {
                   href={downloadUrl}
                   download={`converted_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`}
                   className="text-green-400 hover:text-green-300 underline flex items-center justify-center gap-2"
-                  onClick={(e) => {
-                    // Не отменяем событие, пусть ссылка работает
-                  }}
                 >
                   <Download size={16} />
                   Скачать файл снова
