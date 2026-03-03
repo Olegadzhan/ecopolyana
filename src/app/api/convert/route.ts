@@ -2,81 +2,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 
+// Отключаем все лишнее для максимальной скорости
+export const runtime = 'nodejs';
+export const maxDuration = 10; // Vercel Hobby лимит
+
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-  // Логи для Vercel
-  console.log(`[API] Начало конвертации в ${new Date().toISOString()}`);
-
+  console.time('total');
+  
   try {
-    // 1. Получаем formData
-    console.log('[API] Получение formData...');
+    // 1. Максимально быстро получаем файл
+    console.time('formData');
     const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const enablePostalSearch = formData.get('enablePostalSearch') === 'true';
-    console.log('[API] enablePostalSearch:', enablePostalSearch);
+    const file = formData.get('file') as File;
+    console.timeEnd('formData');
 
-    // 2. Проверка файла
     if (!file) {
-      console.log('[API] Ошибка: файл не предоставлен');
-      return NextResponse.json({ error: 'Файл не предоставлен' }, { status: 400 });
+      return NextResponse.json({ error: 'Нет файла' }, { status: 400 });
     }
-    console.log(`[API] Файл получен: ${file.name}, размер: ${file.size} байт`);
 
-    // 3. Чтение файла в буфер
-    console.log('[API] Чтение файла в буфер...');
+    // 2. Читаем файл
+    console.time('arrayBuffer');
     const bytes = await file.arrayBuffer();
-    console.log('[API] Буфер прочитан, размер:', bytes.byteLength);
+    console.timeEnd('arrayBuffer');
 
-    // 4. Парсинг XLSX
-    console.log('[API] Парсинг XLSX...');
+    // 3. Парсим XLSX
+    console.time('xlsx');
     const workbook = XLSX.read(bytes, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    console.log('[API] Лист найден:', sheetName);
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    console.timeEnd('xlsx');
 
-    // 5. Конвертация в JSON
-    console.log('[API] Конвертация листа в JSON...');
-    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
-    console.log(`[API] Получено ${jsonData.length} записей`);
-
-    // 6. Базовая обработка (просто добавляем ID)
-    console.log('[API] Обогащение данных...');
-    const enrichedData = jsonData.map((record, index) => ({
+    // 4. Минимальная обработка (только ID)
+    console.time('process');
+    const enrichedData = jsonData.map((record: any, index) => ({
       ...record,
-      record_id: index + 1,
-      processed_at: new Date().toISOString(),
-      // Здесь можно добавить логику DaData позже
+      record_id: index + 1
     }));
+    console.timeEnd('process');
 
-    // 7. Создаем JSON строку
-    console.log('[API] Создание JSON строки...');
-    const jsonString = JSON.stringify(enrichedData, null, 2);
-    const jsonBuffer = Buffer.from(jsonString, 'utf-8');
-    const endTime = Date.now();
-
-    console.log(`[API] УСПЕХ. Конвертация завершена за ${endTime - startTime}ms`);
-
-    // 8. Возвращаем файл
-    return new NextResponse(jsonBuffer, {
+    // 5. Отправляем результат
+    console.time('response');
+    const jsonString = JSON.stringify(enrichedData);
+    const response = new NextResponse(jsonString, {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="converted_${Date.now()}.json"`,
+        'Content-Disposition': `attachment; filename="result.json"`,
       },
     });
+    console.timeEnd('response');
+    console.timeEnd('total');
+    
+    return response;
 
   } catch (error: any) {
-    const endTime = Date.now();
-    console.error(`[API] ОШИБКА через ${endTime - startTime}ms:`, error);
+    console.error('Error:', error);
     return NextResponse.json(
-      {
-        error: 'Ошибка при конвертации',
-        details: error?.message || 'Неизвестная ошибка',
-      },
+      { error: error?.message || 'Ошибка' },
       { status: 500 }
     );
   }
 }
-
-// Увеличиваем лимит времени для Vercel (макс. для hobby-плана - 10 или 15 сек, но попробуем)
-export const maxDuration = 30; // секунд
