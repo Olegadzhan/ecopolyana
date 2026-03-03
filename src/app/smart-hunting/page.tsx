@@ -14,7 +14,7 @@ import {
 type ConversionStatus = 'idle' | 'converting' | 'success' | 'error';
 
 type DadataStatus = {
-  status: 'idle' | 'checking' | 'valid' | 'invalid';
+  status: 'idle' | 'checking' | 'valid' | 'invalid' | 'disabled';
   message?: string;
   balance?: number;
 };
@@ -81,64 +81,64 @@ export default function SmartHuntingPage() {
     setDadataStats({ requests: 0, success: 0, errors: 0 });
   };
 
-  // Проверка API ключа DaData
-  useEffect(() => {
-    const checkKey = async () => {
-      if (!dadataApiKey || dadataApiKey.length < 10) {
-        setDadataStatus({ status: 'idle' });
-        return;
-      }
+  // Проверка API ключа DaData через сервер
+  const checkDadataKey = async (key: string) => {
+    if (!key || key.length < 10) {
+      setDadataStatus({ status: 'idle' });
+      return;
+    }
 
-      setDadataStatus({ status: 'checking' });
-      addLog('info', 'dadata', 'Проверка API ключа DaData...');
+    setDadataStatus({ status: 'checking', message: 'Проверка ключа...' });
+    addLog('info', 'dadata', 'Проверка API ключа DaData...');
 
-      try {
-        // Проверяем баланс (более информативно)
-        const balanceResponse = await fetch('https://dadata.ru/api/v2/profile/balance', {
-          headers: {
-            'Authorization': `Token ${dadataApiKey}`
-          }
+    try {
+      const response = await fetch('/api/check-dadata', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ apiKey: key })
+      });
+
+      const data = await response.json();
+
+      if (data.valid) {
+        setDadataStatus({ 
+          status: 'valid', 
+          message: data.message || 'Ключ действителен',
+          balance: data.balance 
         });
-
-        if (balanceResponse.ok) {
-          const balanceData = await balanceResponse.json();
-          const balance = balanceData.balance || 0;
-          
-          setDadataStatus({ 
-            status: 'valid', 
-            message: `Ключ действителен, баланс: ${balance} ₽`,
-            balance 
-          });
-          addLog('success', 'dadata', `✅ Ключ действителен, баланс: ${balance} ₽`);
-        } else {
-          // Если баланс не доступен, пробуем тестовый запрос
-          const testResponse = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Token ${dadataApiKey}`
-            },
-            body: JSON.stringify({ query: 'Москва', count: 1 })
-          });
-
-          if (testResponse.ok) {
-            setDadataStatus({ status: 'valid', message: 'Ключ действителен' });
-            addLog('success', 'dadata', '✅ Ключ действителен');
-          } else {
-            const error = await testResponse.text();
-            setDadataStatus({ status: 'invalid', message: 'Недействительный ключ' });
-            addLog('error', 'dadata', `❌ Ошибка ключа: ${testResponse.status}`);
-          }
-        }
-      } catch (error: any) {
-        setDadataStatus({ status: 'invalid', message: 'Ошибка проверки' });
-        addLog('error', 'dadata', `❌ Ошибка проверки: ${error.message}`);
+        addLog('success', 'dadata', `✅ ${data.message || 'Ключ действителен'}`);
+      } else {
+        setDadataStatus({ 
+          status: 'invalid', 
+          message: data.error || 'Недействительный ключ' 
+        });
+        addLog('error', 'dadata', `❌ ${data.error || 'Недействительный ключ'}`);
       }
-    };
+    } catch (error: any) {
+      setDadataStatus({ 
+        status: 'invalid', 
+        message: 'Ошибка проверки' 
+      });
+      addLog('error', 'dadata', `❌ Ошибка проверки: ${error.message}`);
+    }
+  };
 
-    const timer = setTimeout(checkKey, 500);
+  // Debounce для проверки ключа
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (enablePostalSearch && dadataApiKey) {
+        checkDadataKey(dadataApiKey);
+      } else if (!enablePostalSearch) {
+        setDadataStatus({ status: 'disabled', message: 'Поиск отключен' });
+      } else {
+        setDadataStatus({ status: 'idle' });
+      }
+    }, 500);
+
     return () => clearTimeout(timer);
-  }, [dadataApiKey]);
+  }, [dadataApiKey, enablePostalSearch]);
 
   // Обработчик загрузки файла
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -206,7 +206,7 @@ export default function SmartHuntingPage() {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('dadataApiKey', dadataApiKey);
+    formData.append('dadataApiKey', enablePostalSearch ? dadataApiKey : '');
     formData.append('enablePostalSearch', String(enablePostalSearch));
 
     try {
@@ -255,6 +255,15 @@ export default function SmartHuntingPage() {
         if (data.logs) {
           data.logs.forEach((log: any) => {
             addLog(log.level, log.stage, log.message, log.details);
+            
+            // Обновляем статистику DaData
+            if (log.stage === 'dadata') {
+              setDadataStats(prev => ({
+                requests: prev.requests + 1,
+                success: prev.success + (log.level === 'success' ? 1 : 0),
+                errors: prev.errors + (log.level === 'error' ? 1 : 0)
+              }));
+            }
           });
         }
         
@@ -335,6 +344,10 @@ export default function SmartHuntingPage() {
 
   // Получение иконки статуса DaData
   const getDadataIcon = () => {
+    if (!enablePostalSearch) {
+      return <WifiOff size={16} className="text-gray-500" />;
+    }
+    
     switch (dadataStatus.status) {
       case 'checking':
         return <Loader2 size={16} className="animate-spin text-yellow-400" />;
@@ -342,6 +355,8 @@ export default function SmartHuntingPage() {
         return <Wifi size={16} className="text-green-400" />;
       case 'invalid':
         return <WifiOff size={16} className="text-red-400" />;
+      case 'disabled':
+        return <WifiOff size={16} className="text-gray-500" />;
       default:
         return <Key size={16} className="text-gray-400" />;
     }
@@ -419,78 +434,86 @@ export default function SmartHuntingPage() {
 
             {/* Настройки конвертации */}
             <div className="space-y-6 mb-8">
-              {/* API ключ DaData с проверкой */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                  {getDadataIcon()}
-                  API ключ DaData
-                  <a 
-                    href="https://dadata.ru/api/#api-key" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-xs text-green-400 hover:text-green-300 ml-2 flex items-center gap-1"
-                  >
-                    <ExternalLink size={12} />
-                    получить ключ
-                  </a>
-                </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    value={dadataApiKey}
-                    onChange={(e) => setDadataApiKey(e.target.value)}
-                    placeholder="Введите ваш API ключ"
-                    className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition pr-40
-                      ${dadataStatus.status === 'invalid' ? 'border-red-500' : 
-                        dadataStatus.status === 'valid' ? 'border-green-500' : 'border-gray-600'}`}
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <span className={`text-sm px-2 py-1 rounded ${
-                      dadataStatus.status === 'valid' ? 'bg-green-500/20 text-green-400' :
-                      dadataStatus.status === 'invalid' ? 'bg-red-500/20 text-red-400' :
-                      dadataStatus.status === 'checking' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-gray-600/50 text-gray-400'
-                    }`}>
-                      {dadataStatus.status === 'valid' && dadataStatus.balance 
-                        ? `${dadataStatus.balance} ₽` 
-                        : dadataStatus.status === 'valid' 
-                          ? '✓ OK' 
-                          : dadataStatus.status === 'checking' 
-                            ? 'Проверка...' 
-                            : 'Не проверен'}
-                    </span>
-                  </div>
-                </div>
-                {dadataStatus.message && (
-                  <p className={`text-sm ${
-                    dadataStatus.status === 'valid' ? 'text-green-400' : 'text-red-400'
-                  } flex items-center gap-1 mt-1`}>
-                    {dadataStatus.status === 'valid' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-                    {dadataStatus.message}
-                  </p>
-                )}
-              </div>
-
               {/* Чекбокс опции */}
               <div className="flex items-center gap-3">
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <input
                     type="checkbox"
                     checked={enablePostalSearch}
-                    onChange={(e) => setEnablePostalSearch(e.target.checked)}
-                    disabled={dadataStatus.status !== 'valid'}
-                    className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500 focus:ring-offset-gray-800 disabled:opacity-50"
+                    onChange={(e) => {
+                      setEnablePostalSearch(e.target.checked);
+                      if (!e.target.checked) {
+                        setDadataStatus({ status: 'disabled', message: 'Поиск отключен' });
+                      } else if (dadataApiKey) {
+                        checkDadataKey(dadataApiKey);
+                      }
+                    }}
+                    className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500 focus:ring-offset-gray-800"
                   />
-                  <span className={`flex items-center gap-2 transition
-                    ${enablePostalSearch && dadataStatus.status !== 'valid' 
-                      ? 'text-gray-500' 
-                      : 'text-gray-300 group-hover:text-white'}`}
-                  >
+                  <span className="text-gray-300 group-hover:text-white transition flex items-center gap-2">
                     <MapPin size={16} className={enablePostalSearch ? 'text-green-400' : 'text-gray-500'} />
                     Автопоиск почтовых индексов через DaData
                   </span>
                 </label>
               </div>
+
+              {/* API ключ DaData с проверкой (показываем только если включен поиск) */}
+              {enablePostalSearch && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                    {getDadataIcon()}
+                    API ключ DaData
+                    <a 
+                      href="https://dadata.ru/api/#api-key" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-green-400 hover:text-green-300 ml-2 flex items-center gap-1"
+                    >
+                      <ExternalLink size={12} />
+                      получить ключ
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={dadataApiKey}
+                      onChange={(e) => setDadataApiKey(e.target.value)}
+                      placeholder="Введите ваш API ключ"
+                      className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition pr-40
+                        ${dadataStatus.status === 'invalid' ? 'border-red-500' : 
+                          dadataStatus.status === 'valid' ? 'border-green-500' : 'border-gray-600'}`}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <span className={`text-sm px-2 py-1 rounded ${
+                        dadataStatus.status === 'valid' ? 'bg-green-500/20 text-green-400' :
+                        dadataStatus.status === 'invalid' ? 'bg-red-500/20 text-red-400' :
+                        dadataStatus.status === 'checking' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-gray-600/50 text-gray-400'
+                      }`}>
+                        {dadataStatus.status === 'valid' && dadataStatus.balance 
+                          ? `${dadataStatus.balance} ₽` 
+                          : dadataStatus.status === 'valid' 
+                            ? '✓ OK' 
+                            : dadataStatus.status === 'checking' 
+                              ? 'Проверка...' 
+                              : dadataStatus.status === 'invalid'
+                                ? 'Ошибка'
+                                : 'Ожидание'}
+                      </span>
+                    </div>
+                  </div>
+                  {dadataStatus.message && (
+                    <p className={`text-sm ${
+                      dadataStatus.status === 'valid' ? 'text-green-400' : 
+                      dadataStatus.status === 'invalid' ? 'text-red-400' : 'text-gray-400'
+                    } flex items-center gap-1 mt-1`}>
+                      {dadataStatus.status === 'valid' && <CheckCircle size={14} />}
+                      {dadataStatus.status === 'invalid' && <AlertCircle size={14} />}
+                      {dadataStatus.message}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Кнопка показа логов */}
               <div className="flex items-center justify-between">
