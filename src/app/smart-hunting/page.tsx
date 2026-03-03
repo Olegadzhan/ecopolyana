@@ -224,52 +224,15 @@ export default function SmartHuntingPage() {
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        let errorText = `HTTP ошибка ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorText = errorData.error || errorData.details || errorText;
-          
-          // Показываем логи ошибки если есть
-          if (errorData.logs) {
-            errorData.logs.forEach((log: any) => {
-              addLog(log.level, log.stage, log.message, log.details);
-            });
-          }
-        } catch {
-          const text = await response.text();
-          if (text) errorText = text;
-        }
-        throw new Error(errorText);
-      }
+      addLog('info', 'process', `Статус ответа: ${response.status}`);
 
-      // Проверяем тип ответа
+      // Проверяем тип ответа по заголовкам
       const contentType = response.headers.get('content-type');
-      
-      if (contentType?.includes('application/json') && !contentType.includes('attachment')) {
-        // Это JSON с данными или ошибкой
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-        
-        // Показываем логи из ответа
-        if (data.logs) {
-          data.logs.forEach((log: any) => {
-            addLog(log.level, log.stage, log.message, log.details);
-            
-            // Обновляем статистику DaData
-            if (log.stage === 'dadata') {
-              setDadataStats(prev => ({
-                requests: prev.requests + 1,
-                success: prev.success + (log.level === 'success' ? 1 : 0),
-                errors: prev.errors + (log.level === 'error' ? 1 : 0)
-              }));
-            }
-          });
-        }
-        
-        addLog('success', 'complete', `Конвертация завершена. Обработано записей: ${data.data?.length || 0}`);
-      } else {
-        // Это файл для скачивания
+      const contentDisposition = response.headers.get('content-disposition');
+
+      // Если это файл для скачивания
+      if (contentDisposition?.includes('attachment') || contentType?.includes('application/json') === false) {
+        addLog('info', 'process', 'Получение файла...');
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         setDownloadUrl(url);
@@ -288,7 +251,64 @@ export default function SmartHuntingPage() {
         document.body.removeChild(a);
         
         addLog('success', 'complete', 'Файл скачан автоматически');
+        return;
       }
+
+      // Если это JSON ответ (ошибка или данные)
+      if (contentType?.includes('application/json')) {
+        addLog('info', 'process', 'Обработка JSON ответа...');
+        
+        // Читаем тело ответа ТОЛЬКО ОДИН РАЗ
+        const data = await response.json();
+
+        if (!response.ok) {
+          // Это ошибка
+          const errorMsg = data.error || data.message || `HTTP ошибка ${response.status}`;
+          addLog('error', 'process', `❌ Ошибка сервера: ${errorMsg}`);
+          
+          if (data.logs) {
+            data.logs.forEach((log: any) => {
+              addLog(log.level, log.stage, log.message, log.details);
+            });
+          }
+          
+          throw new Error(errorMsg);
+        }
+
+        // Это успешный JSON с данными
+        if (data.logs) {
+          data.logs.forEach((log: any) => {
+            addLog(log.level, log.stage, log.message, log.details);
+            
+            if (log.stage === 'dadata') {
+              setDadataStats(prev => ({
+                requests: prev.requests + 1,
+                success: prev.success + (log.level === 'success' ? 1 : 0),
+                errors: prev.errors + (log.level === 'error' ? 1 : 0)
+              }));
+            }
+          });
+        }
+
+        addLog('success', 'complete', `Конвертация завершена. Обработано записей: ${data.data?.length || 0}`);
+        
+        // Если есть данные, предлагаем скачать
+        if (data.data) {
+          const jsonString = JSON.stringify(data.data, null, 2);
+          const blob = new Blob([jsonString], { type: 'application/json' });
+          const url = window.URL.createObjectURL(blob);
+          setDownloadUrl(url);
+          
+          addLog('info', 'complete', 'Данные готовы, нажмите кнопку "Скачать файл снова"');
+        }
+        
+        setProgress(100);
+        setStatus('success');
+        return;
+      }
+
+      // Если неизвестный тип ответа
+      throw new Error(`Неизвестный тип ответа: ${contentType}`);
 
     } catch (error: any) {
       if (error.name === 'AbortError') {
